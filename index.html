@@ -334,18 +334,26 @@ let TAB='workout';
 const app=document.getElementById('app');
 function go(t){TAB=t;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));render();window.scrollTo(0,0);}
 
+function _render(){
+  if(TAB==='workout')renderWorkout();
+  else if(TAB==='calendar')renderCalendar();
+  else renderStats();
+}
 function render(){
-  try{
-    if(TAB==='workout')renderWorkout();
-    else if(TAB==='calendar')renderCalendar();
-    else renderStats();
-  }catch(e){
-    app.innerHTML='<div class="wrap"><div class="card"><h3>אופס, משהו השתבש</h3>'+
-      '<p style="color:var(--dim);font-size:14px;margin:10px 0">אל דאגה — הנתונים שלך שמורים. נסה לרענן, או שחזר גיבוי.</p>'+
-      '<button class="settingsbtn" onclick="location.reload()">↻ רענן</button>'+
-      '<button class="settingsbtn" onclick="TAB=\'workout\';S.draft={sig:\'\',data:{}};save();location.reload()">נקה טיוטה ורענן</button>'+
-      '</div></div>';
-    try{console.error(e);}catch(_){}
+  try{ _render(); }
+  catch(e){
+    // self-heal: a corrupt draft is the most likely cause — drop it and retry once
+    try{ S.draft={sig:'',data:{}}; save(); _render(); return; }
+    catch(e2){
+      // last resort: also fall back to the workout tab, then show recovery UI
+      try{ TAB='workout'; S.draft={sig:'',data:{}}; save(); _render(); return; }catch(e3){}
+      app.innerHTML='<div class="wrap"><div class="card"><h3>אופס, משהו השתבש</h3>'+
+        '<p style="color:var(--dim);font-size:14px;margin:10px 0">אל דאגה — הנתונים שלך שמורים. נסה לרענן, או שחזר גיבוי.</p>'+
+        '<button class="settingsbtn" onclick="location.reload()">↻ רענן</button>'+
+        '<button class="settingsbtn" onclick="S.draft={sig:\'\',data:{}};save();location.reload()">נקה טיוטה ורענן</button>'+
+        '</div></div>';
+      try{console.error('RENDER_ERR',e2&&e2.message,e2&&e2.stack);}catch(_){}
+    }
   }
 }
 
