@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -25,6 +25,7 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Rubik,"Helvetica Neue",Arial,sans-serif;
   font-size:17px; line-height:1.45; -webkit-font-smoothing:antialiased;
   padding-bottom:calc(78px + env(safe-area-inset-bottom));
+  direction:ltr; text-align:left;
 }
 input,textarea,button,select{font-family:inherit}
 button{cursor:pointer;border:none;background:none;color:inherit}
@@ -37,9 +38,9 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 .hdr .title b{color:var(--gold)} .hdr .title span{color:var(--green2)}
 .hdr .sub{font-size:12.5px;color:var(--dim);font-weight:700}
 .brand{display:flex;align-items:center;gap:10px}
-.brand .mark{width:42px;height:42px;border-radius:11px;background:var(--green);display:flex;align-items:center;justify-content:center;border:1.5px solid var(--gold);flex:0 0 auto;overflow:hidden}
-.brand .mark img{width:100%;height:100%;object-fit:cover}
-.brand .mark svg{width:30px;height:30px}
+.brand .mark{width:44px;height:44px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.brand .mark img{width:100%;height:100%;object-fit:contain}
+.brand .mark svg{width:44px;height:44px}
 .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-weight:800;font-size:14px}
 
 /* cards */
@@ -52,8 +53,10 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .d-strength{background:var(--gold)} .d-cond{background:var(--sky)} .d-cf{background:var(--rose)} .d-run{background:var(--run)}
 
-.wtitle{font-size:26px;font-weight:800;margin:10px 0 4px}
-.wsub{color:var(--dim);font-size:14px;font-weight:600;line-height:1.5}
+.wtitle{font-size:26px;font-weight:800;margin:10px 0 4px;text-align:left}
+.wsub{color:var(--dim);font-size:14px;font-weight:600;line-height:1.5;text-align:left}
+.ex .en,.ex .rx,.fld small,.setrow .hc,.detail-ex .dn,.detail-ex .dl,.stat .k,.stat .v,.sheet h3{text-align:left}
+input.in{text-align:left;direction:ltr}
 .wnum{font-size:14px;font-weight:800;color:var(--dim)}
 .rx b.calc{color:var(--run);font-weight:800;background:rgba(52,211,153,.12);padding:1px 6px;border-radius:6px;white-space:nowrap}
 
@@ -65,6 +68,7 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 .ex.warm .rx{color:var(--dim)}
 .setrow{display:grid;grid-template-columns:1fr 1fr 1.3fr auto;gap:7px;align-items:center;margin-bottom:7px}
 .setrow .lbl{grid-column:1/-1;font-size:12px;color:var(--dim);font-weight:700;margin-bottom:-2px}
+.setrow .hc{font-size:11.5px;color:var(--dim);font-weight:700;padding:0 2px 1px}
 .fld{display:flex;flex-direction:column;gap:3px}
 .fld small{font-size:11px;color:var(--dim);font-weight:700}
 input.in,textarea.in{
@@ -258,16 +262,16 @@ const TYPE_HE={strength:'הרמת משקולות',cond:'סיבולת',crossfit:'
 /* ---------- 1RM maxes → auto-computed target loads ---------- */
 // EDIT HERE: Gal's personal maxes in kg (0 = unknown, app just shows the %)
 const MAXES={
-  snatch:0,        // Squat Snatch  (סנאץ׳ מלא)
-  powerSnatch:0,   // Power Snatch  (פאוור סנאץ׳)
-  cleanJerk:0,     // Clean & Jerk  (נקישה ודחיקה)
-  powerClean:0,    // Power Clean   (פאוור קלין)
-  pushPress:0,     // Push Press    (פוש פרס)
-  frontSquat:0,    // Front Squat   (פרונט סקוואט)
-  backSquat:0,     // Back Squat    (בק סקוואט)
-  deadlift:0,      // Deadlift      (דדליפט)
-  bench:0,         // Bench Press   (בנץ׳ פרס)
-  weightedPullup:0 // Weighted Pull-up (מתח במשקל)
+  snatch:90,        // Squat Snatch  (סקוואט סנאץ׳)
+  powerSnatch:80,   // Power Snatch  (פאוור סנאץ׳)
+  cleanJerk:120,    // Clean & Jerk  (קלין אנד ג׳רק)
+  powerClean:125,   // Power Clean   (פאוור קלין)
+  pushPress:110,    // Push Press    (פוש פרס)
+  frontSquat:130,   // Front Squat   (פרונט סקוואט)
+  backSquat:150,    // Back Squat    (בק סקוואט)
+  deadlift:0,       // Deadlift      (דדליפט) — עדיין חסר, ממתין למספר של גל
+  bench:95,         // Bench Press   (בנץ׳ פרס)
+  weightedPullup:24 // Weighted Pull-up (מתח עם משקל)
 };
 const LIFT_MAP=[
   [/squat snatch/i,'snatch'],
@@ -347,8 +351,15 @@ function render(){
 
 /* ===== brand header ===== */
 function brandMark(){
-  return '<div class="mark"><svg viewBox="0 0 32 32" fill="none">'+
-    '<path d="M16 30c-3 0-5-2.4-5-5.6 0-2.2 1-3.4 1-5.4 0-2-1.6-3-4-3.2C6 15.6 4 14 4 11.2 4 9 5 7.6 5 5.4 5 4 4.4 3 4.4 3s2 .4 3 2c.7 1.1.6 2.4.6 2.4s1.4-1 3-1 3 1 3 1V4h4v5.8s1.4-1 3-1 3 1 3 1 -.1-1.3.6-2.4c1-1.6 3-2 3-2s-.6 1-.6 2.4c0 2.2 1 3.6 1 5.8 0 2.8-2 4.4-4 4.6-2.4.2-4 1.2-4 3.2 0 2 1 3.2 1 5.4C21 27.6 19 30 16 30z" fill="#F1C93B"/>'+
+  return '<div class="mark"><svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">'+
+    '<circle cx="120" cy="120" r="112" fill="#F1C93B"/>'+
+    '<g fill="none" stroke="#1F5D24" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">'+
+    '<path d="M128 96 C150 78 158 60 160 40"/><path d="M150 66 C162 60 172 58 182 60"/><path d="M156 52 C168 44 178 40 190 40"/><path d="M159 46 C150 38 146 32 148 22"/>'+
+    '<path d="M112 96 C90 78 82 60 80 40"/><path d="M90 66 C78 60 68 58 58 60"/><path d="M84 52 C72 44 62 40 50 40"/><path d="M81 46 C90 38 94 32 92 22"/></g>'+
+    '<g fill="#1F5D24"><path d="M104 104 C92 100 82 104 80 114 C90 116 100 114 106 108 Z"/><path d="M136 104 C148 100 158 104 160 114 C150 116 140 114 134 108 Z"/></g>'+
+    '<path d="M120 100 C136 100 148 114 147 134 C146 158 134 182 120 196 C106 182 94 158 93 134 C92 114 104 100 120 100 Z" fill="#1F5D24"/>'+
+    '<g fill="#F1C93B"><path d="M106 132 C110 129 116 130 118 134 C114 135 109 135 106 132 Z"/><path d="M134 132 C130 129 124 130 122 134 C126 135 131 135 134 132 Z"/></g>'+
+    '<path d="M120 150 L120 180" stroke="#F1C93B" stroke-width="5" stroke-linecap="round"/><ellipse cx="120" cy="186" rx="9" ry="6" fill="#F1C93B"/>'+
     '</svg></div>';
 }
 function brandHeader(sub){
@@ -412,7 +423,7 @@ function renderStrength(nw){
 function setRow(ei,k,repsPh,data){
   const w=data['st_'+ei+'_'+k+'_w']||'', r=data['st_'+ei+'_'+k+'_r']||'', n=data['st_'+ei+'_'+k+'_n']||'';
   return `<div class="setrow">
-    ${k===0?'<div class="lbl">משקל (ק״ג) · חזרות · הערה</div>':''}
+    ${k===0?'<div class="hc">משקל (ק״ג)</div><div class="hc">חזרות</div><div class="hc">הערה</div><div class="hc"></div>':''}
     <div class="fld"><input class="in" inputmode="decimal" placeholder="ק״ג" data-f="st_${ei}_${k}_w" value="${w}"></div>
     <div class="fld"><input class="in" inputmode="numeric" placeholder="${repsPh||'חזרות'}" data-f="st_${ei}_${k}_r" value="${r}"></div>
     <div class="fld"><input class="in" placeholder="הערה" data-f="st_${ei}_${k}_n" value="${esc(n)}"></div>
@@ -451,59 +462,23 @@ const CF_MSGS=[
   {e:'🚀',t:'יאללה, לפוצץ!',s:'תוכיח לעצמך מה אתה שווה 🦾'},
 ];
 function cfMsg(i){return CF_MSGS[i%CF_MSGS.length];}
-function renderCF(nw){
+function renderExternal(nw,kind){
   const data=draftFor(nw.sig), no=S.totalDone+1;
-  const m=cfMsg(S.totalDone);
-  const nrows=data.cf_nrows||1;
+  const info = kind==='crossfit'
+    ? {badge:'crossfit', emoji:'🔥', big:'היום אימון קרוספיט', small:'יאללה לעבודה 💪'}
+    : {badge:'run',      emoji:'🏃', big:'היום אימון ריצה',    small:'צא לכביש, תשרוף אוויר 💨'};
   let h=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge('crossfit')}<span class="wnum">אימון ${no}</span></div>
-    <div class="hero"><div class="emoji">${m.e}</div><div class="big">${m.t}</div><div class="small">${m.s}</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge(info.badge)}<span class="wnum">אימון ${no}</span></div>
+    <div class="hero"><div class="emoji">${info.emoji}</div><div class="big">${info.big}</div><div class="small">${info.small}</div></div>
   </div>
-  <div class="ex"><div class="en">מה עשיתם באימון?</div>
-    <div class="fld"><textarea class="in" placeholder="תאר את ה-WOD והתוצאה שלך..." data-f="cf_text">${esc(data.cf_text||'')}</textarea></div>
-  </div>
-  <div class="ex"><div class="en">תרגילים (לחישוב טונאז׳)</div>
-    <div class="rx" style="color:var(--dim)">הוסף שורות של תרגיל · משקל · חזרות אם רוצים שייכנס לטונאז׳</div>
-    <div id="cfrows">`;
-  for(let k=0;k<nrows;k++) h+=cfRow(k,data);
-  h+=`</div><div class="exbtns"><button class="minibtn" onclick="addCf()">+ שורה</button><button class="minibtn" onclick="delCf()">– שורה</button></div>
+  <div class="ex"><div class="en">הערה (רשות)</div>
+    <div class="fld"><textarea class="in" placeholder="אפשר לרשום כאן מה עשית / התוצאה..." data-f="ext_note">${esc(data.ext_note||'')}</textarea></div>
   </div>`;
   h+=finishBtns(nw);
   return h;
 }
-function cfRow(k,data){
-  return `<div class="setrow" style="grid-template-columns:1.4fr 1fr 1fr">
-    ${k===0?'<div class="lbl">תרגיל · משקל (ק״ג) · חזרות</div>':''}
-    <div class="fld"><input class="in" placeholder="תרגיל" data-f="cf_${k}_ex" value="${esc(data['cf_'+k+'_ex']||'')}"></div>
-    <div class="fld"><input class="in" inputmode="decimal" placeholder="ק״ג" data-f="cf_${k}_w" value="${data['cf_'+k+'_w']||''}"></div>
-    <div class="fld"><input class="in" inputmode="numeric" placeholder="חזרות" data-f="cf_${k}_r" value="${data['cf_'+k+'_r']||''}"></div>
-  </div>`;
-}
-const RUN_MSGS=[
-  {e:'🏃',t:'זמן לריצה!',s:'שים נעליים וצא לכביש 🛣️'},
-  {e:'🏃‍♂️',t:'יאללה לרוץ!',s:'רק אתה, הכביש והנשימה 💨'},
-  {e:'👟',t:'יום ריצה!',s:'כל קילומטר מקרב אותך למטרה 🎯'},
-  {e:'🌬️',t:'צא לרוץ!',s:'נקה את הראש, תשרוף אוויר 🔥'},
-];
-function runMsg(i){return RUN_MSGS[i%RUN_MSGS.length];}
-function renderRun(nw){
-  const data=draftFor(nw.sig), no=S.totalDone+1, m=runMsg(S.totalDone);
-  let h=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge('run')}<span class="wnum">אימון ${no}</span></div>
-    <div class="hero"><div class="emoji">${m.e}</div><div class="big">${m.t}</div><div class="small">${m.s}</div></div>
-  </div>
-  <div class="ex"><div class="en">התוצאות שלי</div>
-    <div class="grid2">
-      <div class="fld"><small>מרחק (ק״מ)</small><input class="in" inputmode="decimal" placeholder="ק״מ" data-f="run_km" value="${data.run_km||''}"></div>
-      <div class="fld"><small>זמן (דק׳)</small><input class="in" inputmode="decimal" placeholder="דקות" data-f="run_time" value="${data.run_time||''}"></div>
-      <div class="fld"><small>קצב ממוצע</small><input class="in" placeholder="למשל 5:10/ק״מ" data-f="run_pace" value="${esc(data.run_pace||'')}"></div>
-      <div class="fld"><small>דופק</small><input class="in" inputmode="numeric" placeholder="bpm" data-f="run_hr" value="${data.run_hr||''}"></div>
-    </div>
-    <div class="fld" style="margin-top:10px"><small>הערות</small><textarea class="in" placeholder="מסלול, איך הרגיש..." data-f="run_notes">${esc(data.run_notes||'')}</textarea></div>
-  </div>`;
-  h+=finishBtns(nw);
-  return h;
-}
+function renderCF(nw){return renderExternal(nw,'crossfit');}
+function renderRun(nw){return renderExternal(nw,'run');}
 function finishBtns(nw){
   return `<button class="finish" id="finishBtn" onclick="askFinish()">✓ סיימתי את האימון</button>
   ${S.history.length?`<button class="undo" onclick="undoLast()">↺ ביטול סימון האימון האחרון</button>`:''}
@@ -524,6 +499,7 @@ function refreshFinish(nw){
   btn.classList.toggle('disabled',!hasAnything(nw));
 }
 function hasAnything(nw){
+  if(nw.type==='crossfit'||nw.type==='run')return true; // done externally, just mark it
   const d=draftFor(nw.sig);
   return Object.keys(d).some(k=>!/nrows/.test(k) && (''+d[k]).trim()!=='');
 }
@@ -532,8 +508,6 @@ function hasAnything(nw){
 function addSet(ei){const d=S.draft.data;const cur=d['st_'+ei+'_nrows']||plannedSets(nextWorkout().def.ex[ei]).sets;d['st_'+ei+'_nrows']=cur+1;save();renderWorkout();}
 function delSet(ei){const d=S.draft.data;const cur=d['st_'+ei+'_nrows']||plannedSets(nextWorkout().def.ex[ei]).sets;if(cur>1){d['st_'+ei+'_nrows']=cur-1;const k=cur-1;delete d['st_'+ei+'_'+k+'_w'];delete d['st_'+ei+'_'+k+'_r'];delete d['st_'+ei+'_'+k+'_n'];save();renderWorkout();}}
 function copyPrev(ei,k){if(k<1)return;const d=S.draft.data;d['st_'+ei+'_'+k+'_w']=d['st_'+ei+'_'+(k-1)+'_w']||'';d['st_'+ei+'_'+k+'_r']=d['st_'+ei+'_'+(k-1)+'_r']||'';save();renderWorkout();}
-function addCf(){const d=S.draft.data;d.cf_nrows=(d.cf_nrows||1)+1;save();renderWorkout();}
-function delCf(){const d=S.draft.data;const c=d.cf_nrows||1;if(c>1){d.cf_nrows=c-1;const k=c-1;delete d['cf_'+k+'_ex'];delete d['cf_'+k+'_w'];delete d['cf_'+k+'_r'];save();renderWorkout();}}
 
 /* ---------- finish / undo ---------- */
 let pendingFinish=null;
@@ -662,19 +636,10 @@ function detailBlock(e){
     if(e.data.en_hr)parts.push('דופק: '+e.data.en_hr);
     if(parts.length)h+=`<div class="detail-ex"><div class="dl">${parts.join('\n')}</div></div>`;
     if(e.data.en_notes)h+=`<div class="detail-ex"><div class="dn">הערות</div><div class="dl">${esc(e.data.en_notes)}</div></div>`;
-  }else if(e.type==='run'){
-    const parts=[];
-    if(e.data.run_km)parts.push('מרחק: '+e.data.run_km+' ק״מ');
-    if(e.data.run_time)parts.push('זמן: '+e.data.run_time+' דק׳');
-    if(e.data.run_pace)parts.push('קצב: '+esc(e.data.run_pace));
-    if(e.data.run_hr)parts.push('דופק: '+e.data.run_hr);
-    if(parts.length)h+=`<div class="detail-ex"><div class="dl">${parts.join('\n')}</div></div>`;
-    if(e.data.run_notes)h+=`<div class="detail-ex"><div class="dn">הערות</div><div class="dl">${esc(e.data.run_notes)}</div></div>`;
-  }else{
+  }else{ // run / crossfit — done from external source, just marked
+    if(e.data.ext_note)h+=`<div class="detail-ex"><div class="dn">הערה</div><div class="dl">${esc(e.data.ext_note)}</div></div>`;
     if(e.data.cf_text)h+=`<div class="detail-ex"><div class="dl">${esc(e.data.cf_text)}</div></div>`;
-    const rows=[];
-    for(let k=0;k<20;k++){const ex=e.data['cf_'+k+'_ex'],wv=e.data['cf_'+k+'_w'],rv=e.data['cf_'+k+'_r'];if(ex||wv||rv)rows.push(`${esc(ex||'–')}: ${wv||'–'}ק״ג × ${rv||'–'}`);}
-    if(rows.length)h+=`<div class="detail-ex"><div class="dn">תרגילים</div><div class="dl">${rows.join('\n')}</div></div>`;
+    if(e.data.run_notes)h+=`<div class="detail-ex"><div class="dl">${esc(e.data.run_notes)}</div></div>`;
   }
   h+=`<button class="minibtn" style="margin-top:6px" onclick="editEntry('${e.id}')">✎ ערוך תוצאות</button></div>`;
   return h;
@@ -712,24 +677,8 @@ function editEntry(id){
       <div class="fld"><small>קצב</small><input class="in" data-e="en_pace" value="${esc(e.data.en_pace||'')}"></div>
       <div class="fld"><small>דופק</small><input class="in" inputmode="numeric" data-e="en_hr" value="${e.data.en_hr||''}"></div>
     </div><div class="fld" style="margin-top:10px"><small>הערות</small><textarea class="in" data-e="en_notes">${esc(e.data.en_notes||'')}</textarea></div></div>`;
-  }else if(e.type==='run'){
-    h+=`<div class="ex"><div class="grid2">
-      <div class="fld"><small>מרחק (ק״מ)</small><input class="in" inputmode="decimal" data-e="run_km" value="${e.data.run_km||''}"></div>
-      <div class="fld"><small>זמן (דק׳)</small><input class="in" inputmode="decimal" data-e="run_time" value="${e.data.run_time||''}"></div>
-      <div class="fld"><small>קצב</small><input class="in" data-e="run_pace" value="${esc(e.data.run_pace||'')}"></div>
-      <div class="fld"><small>דופק</small><input class="in" inputmode="numeric" data-e="run_hr" value="${e.data.run_hr||''}"></div>
-    </div><div class="fld" style="margin-top:10px"><small>הערות</small><textarea class="in" data-e="run_notes">${esc(e.data.run_notes||'')}</textarea></div></div>`;
-  }else{
-    h+=`<div class="ex"><div class="fld"><small>תיאור</small><textarea class="in" data-e="cf_text">${esc(e.data.cf_text||'')}</textarea></div>`;
-    const nrows=e.data.cf_nrows||1;
-    for(let k=0;k<nrows;k++){
-      h+=`<div class="setrow" style="grid-template-columns:1.4fr 1fr 1fr">
-        <div class="fld"><input class="in" placeholder="תרגיל" data-e="cf_${k}_ex" value="${esc(e.data['cf_'+k+'_ex']||'')}"></div>
-        <div class="fld"><input class="in" inputmode="decimal" placeholder="ק״ג" data-e="cf_${k}_w" value="${e.data['cf_'+k+'_w']||''}"></div>
-        <div class="fld"><input class="in" inputmode="numeric" placeholder="חזרות" data-e="cf_${k}_r" value="${e.data['cf_'+k+'_r']||''}"></div>
-      </div>`;
-    }
-    h+=`</div>`;
+  }else{ // run / crossfit — done externally, optional note only
+    h+=`<div class="ex"><div class="fld"><small>הערה (רשות)</small><textarea class="in" data-e="ext_note">${esc(e.data.ext_note||e.data.cf_text||e.data.run_notes||'')}</textarea></div></div>`;
   }
   h+=`<button class="finish" onclick="saveEdit('${id}')">שמור שינויים</button>`;
   document.getElementById('sheetBody').innerHTML=h;
@@ -767,15 +716,14 @@ function renderStats(){
   const ton=S.history.filter(e=>inScope(e.date,statScope)).reduce((a,e)=>a+tonnageOf(e),0);
   const condS=S.history.filter(e=>e.type==='cond'&&inScope(e.date,statScope));
   const dist=condS.reduce((a,e)=>a+(+e.data.en_dist||0),0);
-  const runS=S.history.filter(e=>e.type==='run'&&inScope(e.date,statScope));
-  const runKm=runS.reduce((a,e)=>a+(+e.data.run_km||0),0);
+  const time=condS.reduce((a,e)=>a+(+e.data.en_time||0),0);
   let h=`<div class="wrap">
     ${brandHeader('סטטיסטיקות')}
     <div class="seg">${scopes.map(s=>`<button class="${s===statScope?'on':''}" onclick="setScope('${s}')">${scLabel[s]}</button>`).join('')}</div>
     <div class="statgrid">
       <div class="stat"><div class="k">טונאז׳ ${scLabel[statScope]}</div><div class="v">${fmtNum(ton)}<span class="u"> ק״ג</span></div></div>
       <div class="stat"><div class="k">מרחק סיבולת</div><div class="v">${fmtNum(dist)}<span class="u"> מ׳</span></div></div>
-      <div class="stat"><div class="k">מרחק ריצה</div><div class="v">${fmtNum(runKm)}<span class="u"> ק״מ</span></div></div>
+      <div class="stat"><div class="k">זמן סיבולת</div><div class="v">${fmtNum(time)}<span class="u"> דק׳</span></div></div>
       <div class="stat"><div class="k">סה״כ אימונים</div><div class="v">${S.history.filter(e=>inScope(e.date,statScope)).length}</div></div>
     </div>
     <h2 style="font-size:16px;margin:20px 0 10px">אימונים לפי סוג</h2>
