@@ -83,7 +83,7 @@ input.in{text-align:left;direction:ltr}
 .setrow{display:grid;grid-template-columns:1fr 1fr 1.3fr auto;gap:7px;align-items:center;margin-bottom:7px}
 .setrow .lbl{grid-column:1/-1;font-size:12px;color:var(--dim);font-weight:700;margin-bottom:-2px}
 .setrow .hc{font-size:11.5px;color:var(--dim);font-weight:700;padding:0 2px 1px}
-.setrow.maxrow [data-maxrep]{border-color:var(--gold);background:rgba(241,201,59,.07)}
+.setrow.maxrow [data-maxrep],.setrow.findrow [data-findrm]{border-color:var(--gold);background:rgba(241,201,59,.07)}
 .fld{display:flex;flex-direction:column;gap:3px}
 .fld small{font-size:11px;color:var(--dim);font-weight:700}
 input.in,textarea.in{
@@ -316,35 +316,81 @@ function liftKey(name){ for(const p of LIFT_MAP){ if(p[0].test(name)) return p[1
 function isGenericHeader(name){
   return /^(for quality|for time|for load|for max|for speed|emom|e[0-9]?mom|amrap|tabata|pick either|superset|complex|waves?|workout|pace|rest|general warm-?up)\b/i.test((name||'').trim());
 }
-// Parse a prescription into exact set rows: reps placeholder + per-set target weight.
-// Handles "max reps ... then N x P% of max" with a live max→reps auto-fill.
+function clampN(n){return Math.max(1,Math.min(15,n));}
+function pctWeight(pctStr,liftName){ const k=liftKey(liftName); if(k&&MAXES[k]>0) return roundKg(parseFloat((''+pctStr).replace(',','.'))/100*MAXES[k]); return ''; }
+// Parse a prescription into EXACT set rows. Applied uniformly to every exercise:
+// each row knows its reps + (computed) weight, and special "max/find-RM" rows drive the rest.
 function parseSets(ex){
-  const t=(ex.rx||[]).join(' ');
-  // Pattern: a max effort, then N sets at P% OF THAT MAX (reps, not weight)
+  const t=(ex.rx||[]).join(' '), low=t.toLowerCase();
+
+  // 1) MAX reps → N x P% OF THAT MAX  (reps auto-fill from your max)
   const ma=t.match(/(\d+)\s*[x×]\s*(\d+)\s*%\s*of your[^.]*?max/i);
   if(/\bmax\b/i.test(t) && ma){
-    const n=Math.max(1,Math.min(12,+ma[1])), pct=+ma[2];
+    const n=clampN(+ma[1]), pct=+ma[2];
     const rows=[{kind:'max',ph:'מקס חזרות'}];
-    for(let i=0;i<n;i++) rows.push({kind:'pctmax',pct:pct,ph:pct+'% ממקס'});
+    for(let i=0;i<n;i++) rows.push({kind:'pctmax',pct,ph:pct+'% ממקס'});
     return {rows};
   }
-  // Walk each "N x M[-K] reps [at P% of your 1RM <lift>]" → N rows w/ reps + weight
+
+  // 2) FIND your <X>RM → N x M reps at P% OF THAT XRM  (weight auto-fill from the RM you find)
+  const fx=t.match(/(?:find your|build to a?)\s*(\d+)\s?RM/i);
+  const fp=t.match(/(\d+)\s*[x×]\s*(\d+(?:-\d+)?)\s*reps\s*at\s*(\d+(?:[.,]\d+)?)\s*%\s*of your\s*(\d+)\s?RM/i);
+  if(fx && fp && fx[1]===fp[4] && fx[1]!=='1'){
+    const xrm=fx[1], n=clampN(+fp[1]), reps=fp[2], pct=parseFloat((''+fp[3]).replace(',','.'));
+    const rows=[{kind:'findrm',rm:xrm,ph:xrm}];
+    for(let i=0;i<n;i++) rows.push({kind:'pctwt',pct,ph:reps});
+    return {rows};
+  }
+
+  // 3) descending ladder "12-10-8-6 reps"
+  const ladder=t.match(/(\d+(?:-\d+){2,})\s*reps/i);
+  if(ladder){
+    const pm=t.match(/(\d+(?:[.,]\d+)?)\s*%\s*of your\s*1RM\s+([a-z][a-z &\-]*)/i);
+    const wkg=pm?pctWeight(pm[1],pm[2]):'';
+    return {rows: ladder[1].split('-').map(r=>({kind:'normal',ph:r,wkg}))};
+  }
+
+  // 4) N waves of A reps at X% and B reps at Y% [of 1RM lift]
+  const wv=t.match(/(\d+)\s*waves?\s*of/i);
+  if(wv){
+    const seg=t.slice(t.toLowerCase().indexOf('wave'));
+    const lift=(seg.match(/of (?:your )?1RM\s+([a-z][a-z &\-]*)/i)||[])[1]||'';
+    const pairs=[...seg.matchAll(/(\d+)\s*reps?\s*at\s*(\d+(?:[.,]\d+)?)\s*%/ig)];
+    if(pairs.length){
+      const rows=[];
+      for(let w=0;w<clampN(+wv[1]);w++) for(const p of pairs) rows.push({kind:'normal',ph:p[1],wkg:pctWeight(p[2],lift)});
+      return {rows};
+    }
+  }
+
+  // 5) Walk each "N x M[-K] reps [at P% of 1RM lift]" (handles multi-phase: "...Then, K x J reps...")
   const rows=[]; const re=/(\d+)\s*[x×]\s*(\d+(?:-\d+)?)\s*reps(?:\s*at\s*(\d+(?:[.,]\d+)?)\s*%\s*of your\s+1RM\s+([a-z][a-z &\-]*))?/ig; let mm;
   while((mm=re.exec(t))){
-    const n=Math.max(1,Math.min(12,+mm[1])), reps=mm[2]; let wkg='';
-    if(mm[3]&&mm[4]){ const k=liftKey(mm[4]); if(k&&MAXES[k]>0) wkg=roundKg(parseFloat((''+mm[3]).replace(',','.'))/100*MAXES[k]); }
-    for(let i=0;i<n;i++) rows.push({kind:'normal',ph:reps,wkg:wkg});
+    const n=clampN(+mm[1]), reps=mm[2], wkg=(mm[3]&&mm[4])?pctWeight(mm[3],mm[4]):'';
+    for(let i=0;i<n;i++) rows.push({kind:'normal',ph:reps,wkg});
   }
   if(rows.length) return {rows};
-  // single "build to X reps"
-  const bm=t.match(/build to\s+(\d+)\s*reps/i);
-  if(bm) return {rows:[{kind:'normal',ph:bm[1]}]};
-  if(/build to|find your/i.test(t)) return {rows:[{kind:'normal',ph:''}]};
-  // fallback: set count from "N x" or "N sets"
-  const sm=t.match(/(\d+)\s*[x×]/), ss=t.match(/(\d+)\s*sets?\b/i);
-  let n=Math.max(1,Math.min(12, sm?+sm[1]:(ss?+ss[1]:1)));
-  const fr=[]; for(let i=0;i<n;i++) fr.push({kind:'normal',ph:''});
-  return {rows:fr};
+
+  // 6) "Build to X reps [at P% of 1RM lift]" → one working set
+  const bm=t.match(/build to\s+(\d+)\s*reps(?:\s*at\s*(\d+(?:[.,]\d+)?)\s*%\s*of your\s+1RM\s+([a-z][a-z &\-]*))?/i);
+  if(bm) return {rows:[{kind:'normal',ph:bm[1],wkg:(bm[2]&&bm[3])?pctWeight(bm[2],bm[3]):''}]};
+
+  // 7) build to a 1RM / find your 1RM / for a single → single test set
+  if(/build to (a )?1rm|build to \d+%|for a single|find your 1rm/i.test(low)) return {rows:[{kind:'normal',ph:''}]};
+
+  // 8) find your max reps / max unbroken → a single max-effort box
+  if(/find your max|max unbroken reps|max reps/i.test(low)) return {rows:[{kind:'max',ph:'מקס חזרות'}]};
+
+  // 9) plain "N reps." / "N unbroken reps" (sub-exercise fragment)
+  const sr=t.match(/^(\d+)(?:-\d+)?\s*(?:unbroken\s*)?reps/i);
+  if(sr) return {rows:[{kind:'normal',ph:sr[1]}]};
+
+  // 10) "N sets of ..." complex scheme
+  const so=t.match(/(\d+)\s*sets?\s*of/i);
+  if(so){ const fr=[]; for(let i=0;i<clampN(+so[1]);i++) fr.push({kind:'normal',ph:''}); return {rows:fr}; }
+
+  // 11) fallback: one flexible row
+  return {rows:[{kind:'normal',ph:''}]};
 }
 // annotate rx lines with computed kg; return {html:[...], prefill:firstKg|''}
 function computeLoads(rxLines){
@@ -374,6 +420,7 @@ function setField(obj,id,val){obj[id]=val;save();}
 /* ---------- classify strength exercise ---------- */
 function rxText(ex){return (ex.rx||[]).join(' ');}
 function isLoggable(ex){
+  if(isGenericHeader(ex.name)) return false; // section header / chooser — the real work is its sub-exercises
   const t=rxText(ex);
   if(/empty barbell/i.test(t)) return false;
   if(/%|kg|[138]\s?rm|1rm|3rm|8rm|ahafa|max reps|max\b|build|find your/i.test(t)) return true;
@@ -501,13 +548,14 @@ function renderStrength(nw){
 function setRow(ei,k,rs,data){
   rs=rs||{kind:'normal',ph:''};
   const w=data['st_'+ei+'_'+k+'_w']||'', r=data['st_'+ei+'_'+k+'_r']||'', n=data['st_'+ei+'_'+k+'_n']||'';
-  const repsPh = rs.ph||'חזרות';
-  let repsAttr='';
-  if(rs.kind==='max') repsAttr=' data-maxrep="'+ei+'"';
-  else if(rs.kind==='pctmax') repsAttr=' data-pctmax="'+ei+'" data-pct="'+rs.pct+'"';
-  return `<div class="setrow${rs.kind==='max'?' maxrow':''}">
+  let repsPh=rs.ph||'חזרות', wPh='ק״ג', repsAttr='', wAttr='', hi='';
+  if(rs.kind==='max'){ repsAttr=' data-maxrep="'+ei+'"'; hi=' maxrow'; }              // reps drives % -of-max reps
+  else if(rs.kind==='pctmax'){ repsAttr=' data-pctmax="'+ei+'" data-pct="'+rs.pct+'"'; }
+  else if(rs.kind==='findrm'){ wAttr=' data-findrm="'+ei+'"'; wPh=rs.rm+'RM'; repsPh=rs.rm; hi=' findrow'; } // weight drives % -of-XRM weights
+  else if(rs.kind==='pctwt'){ wAttr=' data-pctwt="'+ei+'" data-pct="'+rs.pct+'"'; }
+  return `<div class="setrow${hi}">
     ${k===0?'<div class="hc">משקל (ק״ג)</div><div class="hc">חזרות</div><div class="hc">הערה</div><div class="hc"></div>':''}
-    <div class="fld"><input class="in" inputmode="decimal" placeholder="ק״ג" data-f="st_${ei}_${k}_w" value="${w}"></div>
+    <div class="fld"><input class="in" inputmode="decimal" placeholder="${wPh}" data-f="st_${ei}_${k}_w"${wAttr} value="${w}"></div>
     <div class="fld"><input class="in" inputmode="numeric" placeholder="${repsPh}" data-f="st_${ei}_${k}_r"${repsAttr} value="${r}"></div>
     <div class="fld"><input class="in" placeholder="הערה" data-f="st_${ei}_${k}_n" value="${esc(n)}"></div>
     <button class="copybtn" title="העתק מהסט הקודם" onclick="copyPrev(${ei},${k})">⇊</button>
@@ -575,17 +623,19 @@ function wireInputs(nw){
   app.querySelectorAll('[data-f]').forEach(el=>{
     el.addEventListener('input',()=>{
       setField(data,el.dataset.f,el.value);
-      if(el.dataset.maxrep!=null) recomputePctMax(el.dataset.maxrep, el.value, data);
+      if(el.dataset.maxrep!=null) recomputeChain(el.dataset.maxrep,'data-pctmax',el.value,false,data); // max reps → reps
+      if(el.dataset.findrm!=null) recomputeChain(el.dataset.findrm,'data-pctwt',el.value,true,data);   // found XRM → weights
       refreshFinish(nw);
     });
   });
   refreshFinish(nw);
 }
-// when the "max reps" set is filled, auto-fill the % -of-max sets' reps
-function recomputePctMax(ei,maxval,data){
-  const mv=parseFloat(maxval)||0;
-  app.querySelectorAll('[data-pctmax="'+ei+'"]').forEach(pm=>{
-    const pct=+pm.dataset.pct; const v = mv>0?Math.round(pct/100*mv):'';
+// a "driver" input (max reps / found XRM) auto-fills all its dependent % rows
+function recomputeChain(ei,attr,val,isWeight,data){
+  const base=parseFloat(val)||0;
+  app.querySelectorAll('['+attr+'="'+ei+'"]').forEach(pm=>{
+    const pct=+pm.dataset.pct;
+    const v = base>0 ? (isWeight?roundKg(pct/100*base):Math.round(pct/100*base)) : '';
     pm.value=v; if(pm.dataset.f) data[pm.dataset.f]=(''+v);
   });
   save();
