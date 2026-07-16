@@ -106,6 +106,11 @@ textarea.in{font-weight:600;line-height:1.5;resize:vertical;min-height:96px}
 .finish.disabled{background:var(--card2);color:var(--dim);box-shadow:none}
 .undo{width:100%;background:var(--card);border:1px solid var(--line);color:var(--dim);font-weight:800;padding:13px;border-radius:14px;font-size:15px}
 
+/* scene background card (crossfit / run) */
+.scenecard{background-size:cover;background-position:center;border:1px solid var(--line);min-height:300px;display:flex;flex-direction:column;justify-content:space-between}
+.scenecard .hero{padding:30px 16px}
+.scenecard .big{text-shadow:0 2px 12px rgba(0,0,0,.55)}
+.scenecard .emoji{filter:drop-shadow(0 3px 8px rgba(0,0,0,.5))}
 /* cf hero */
 .hero{text-align:center;padding:26px 16px}
 .hero .emoji{font-size:64px;line-height:1}
@@ -474,11 +479,11 @@ function cfMsg(i){return CF_MSGS[i%CF_MSGS.length];}
 function renderExternal(nw,kind){
   const data=draftFor(nw.sig), no=S.totalDone+1;
   const info = kind==='crossfit'
-    ? {badge:'crossfit', emoji:'🔥', big:'היום אימון קרוספיט', small:'יאללה לעבודה 💪'}
-    : {badge:'run',      emoji:'🏃', big:'היום אימון ריצה',    small:'צא לכביש, תשרוף אוויר 💨'};
-  let h=`<div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge(info.badge)}<span class="wnum">אימון ${no}</span></div>
-    <div class="hero"><div class="emoji">${info.emoji}</div><div class="big">${info.big}</div><div class="small">${info.small}</div></div>
+    ? {badge:'crossfit', emoji:'🔥', big:'היום אימון קרוספיט', small:'יאללה לעבודה 💪', scene:'scene-cf.jpg'}
+    : {badge:'run',      emoji:'🏃', big:'היום אימון ריצה',    small:'צא לכביש, תשרוף אוויר 💨', scene:'scene-run.jpg'};
+  let h=`<div class="card scenecard" style="background-image:linear-gradient(180deg,rgba(13,17,23,.32),rgba(13,17,23,.86)),url('${info.scene}')">
+    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge(info.badge)}<span class="wnum" style="color:#fff">אימון ${no}</span></div>
+    <div class="hero"><div class="emoji">${info.emoji}</div><div class="big" style="color:#fff">${info.big}</div><div class="small" style="color:#dfe7ee">${info.small}</div></div>
   </div>
   <div class="ex"><div class="en">הערה (רשות)</div>
     <div class="fld"><textarea class="in" placeholder="אפשר לרשום כאן מה עשית / התוצאה..." data-f="ext_note">${esc(data.ext_note||'')}</textarea></div>
