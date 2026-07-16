@@ -3,16 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#1F5D24">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BUX Athletes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>מעקב אימונים</title>
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>BUX ATHLETES</title>
 <style>
 :root{
   --bg:#0d1117; --bg2:#161b22; --card:#1c2430; --card2:#232d3b;
   --line:#2b3542; --txt:#eef2f6; --dim:#9aa7b4; --dim2:#6b7684;
-  --gold:#F1C93B; --green:#2f9e44; --sky:#38bdf8; --rose:#fb7185;
+  --gold:#F1C93B; --green:#1F5D24; --green2:#2f9e44; --sky:#38bdf8; --rose:#fb7185; --run:#34d399;
   --shadow:0 8px 24px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -30,8 +33,13 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 
 /* header */
 .hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px}
-.hdr .title{font-size:19px;font-weight:800}
-.hdr .sub{font-size:13px;color:var(--dim);font-weight:600}
+.hdr .title{font-size:19px;font-weight:900;letter-spacing:.02em}
+.hdr .title b{color:var(--gold)} .hdr .title span{color:var(--green2)}
+.hdr .sub{font-size:12.5px;color:var(--dim);font-weight:700}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .mark{width:42px;height:42px;border-radius:11px;background:var(--green);display:flex;align-items:center;justify-content:center;border:1.5px solid var(--gold);flex:0 0 auto;overflow:hidden}
+.brand .mark img{width:100%;height:100%;object-fit:cover}
+.brand .mark svg{width:30px;height:30px}
 .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 13px;font-weight:800;font-size:14px}
 
 /* cards */
@@ -40,11 +48,14 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 .b-strength{background:rgba(241,201,59,.16);color:var(--gold)}
 .b-cond{background:rgba(56,189,248,.16);color:var(--sky)}
 .b-cf{background:rgba(251,113,133,.16);color:var(--rose)}
+.b-run{background:rgba(52,211,153,.16);color:var(--run)}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
-.d-strength{background:var(--gold)} .d-cond{background:var(--sky)} .d-cf{background:var(--rose)}
+.d-strength{background:var(--gold)} .d-cond{background:var(--sky)} .d-cf{background:var(--rose)} .d-run{background:var(--run)}
 
 .wtitle{font-size:26px;font-weight:800;margin:10px 0 4px}
 .wsub{color:var(--dim);font-size:14px;font-weight:600;line-height:1.5}
+.wnum{font-size:14px;font-weight:800;color:var(--dim)}
+.rx b.calc{color:var(--run);font-weight:800;background:rgba(52,211,153,.12);padding:1px 6px;border-radius:6px;white-space:nowrap}
 
 /* exercise */
 .ex{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:13px;margin-bottom:11px}
@@ -226,20 +237,68 @@ function weekStartKey(k){const d=parseKey(k);d.setDate(d.getDate()-d.getDay());r
 function fmtDate(k){const d=parseKey(k);return d.getDate()+' ב'+MONTHS[d.getMonth()];}
 
 /* ---------- cycle logic ---------- */
-// step in cycle: 0,1 = strength ; 2 = conditioning ; 3 = crossfit
+// fixed 10-workout cycle, repeats forever
+const CYCLE=['strength','strength','cond','strength','crossfit','strength','strength','run','strength','crossfit'];
 function nextWorkout(){
-  const step=S.totalDone%4;
-  if(step===0||step===1){
+  const step=S.totalDone%CYCLE.length;
+  const type=CYCLE[step];
+  if(type==='strength'){
     let i=S.strengthIdx; if(!PROGRAMS.strength[i]){i=0;S.strengthIdx=0;}
     return {type:'strength',def:PROGRAMS.strength[i],sig:'st'+i,step};
   }
-  if(step===2){
+  if(type==='cond'){
     let i=S.condIdx; if(!PROGRAMS.cond[i]){i=0;S.condIdx=0;}
     return {type:'cond',def:PROGRAMS.cond[i],sig:'cn'+i,step};
   }
+  if(type==='run') return {type:'run',def:null,sig:'rn'+S.totalDone,step};
   return {type:'crossfit',def:null,sig:'cf'+S.totalDone,step};
 }
-const TYPE_HE={strength:'הרמת משקולות',cond:'סיבולת',crossfit:'קרוספיט'};
+const TYPE_HE={strength:'הרמת משקולות',cond:'סיבולת',crossfit:'קרוספיט',run:'ריצה'};
+
+/* ---------- 1RM maxes → auto-computed target loads ---------- */
+// EDIT HERE: Gal's personal maxes in kg (0 = unknown, app just shows the %)
+const MAXES={
+  snatch:0,        // Squat Snatch  (סנאץ׳ מלא)
+  powerSnatch:0,   // Power Snatch  (פאוור סנאץ׳)
+  cleanJerk:0,     // Clean & Jerk  (נקישה ודחיקה)
+  powerClean:0,    // Power Clean   (פאוור קלין)
+  pushPress:0,     // Push Press    (פוש פרס)
+  frontSquat:0,    // Front Squat   (פרונט סקוואט)
+  backSquat:0,     // Back Squat    (בק סקוואט)
+  deadlift:0,      // Deadlift      (דדליפט)
+  bench:0,         // Bench Press   (בנץ׳ פרס)
+  weightedPullup:0 // Weighted Pull-up (מתח במשקל)
+};
+const LIFT_MAP=[
+  [/squat snatch/i,'snatch'],
+  [/power snatch/i,'powerSnatch'],
+  [/clean\s*&\s*jerk|clean and jerk/i,'cleanJerk'],
+  [/power clean/i,'powerClean'],
+  [/push press/i,'pushPress'],
+  [/front squat/i,'frontSquat'],
+  [/back squat/i,'backSquat'],
+  [/deadlift/i,'deadlift'],
+  [/bench press/i,'bench'],
+  [/weighted pull-?up/i,'weightedPullup']
+];
+function roundKg(x){return Math.round(x*2)/2;}
+// annotate rx lines with computed kg; return {html:[...], prefill:firstKg|''}
+function computeLoads(rxLines){
+  let prefill='';
+  const html=(rxLines||[]).map(line=>{
+    return (''+line).replace(/(\d+(?:[.,]\d+)?)\s*%\s*of your\s+1RM\s+([a-z][a-z &\-]*)/ig,(m,pct,lift)=>{
+      let key=null;
+      for(const p of LIFT_MAP){ if(p[0].test(lift)){key=p[1];break;} }
+      if(key && MAXES[key]>0){
+        const kg=roundKg(parseFloat((''+pct).replace(',','.'))/100*MAXES[key]);
+        if(prefill==='')prefill=kg;
+        return m+' <b class="calc">= '+kg+' ק״ג</b>';
+      }
+      return m;
+    });
+  });
+  return {html, prefill};
+}
 
 /* ---------- draft ---------- */
 function draftFor(sig){
@@ -286,17 +345,29 @@ function render(){
   }
 }
 
+/* ===== brand header ===== */
+function brandMark(){
+  return '<div class="mark"><svg viewBox="0 0 32 32" fill="none">'+
+    '<path d="M16 30c-3 0-5-2.4-5-5.6 0-2.2 1-3.4 1-5.4 0-2-1.6-3-4-3.2C6 15.6 4 14 4 11.2 4 9 5 7.6 5 5.4 5 4 4.4 3 4.4 3s2 .4 3 2c.7 1.1.6 2.4.6 2.4s1.4-1 3-1 3 1 3 1V4h4v5.8s1.4-1 3-1 3 1 3 1 -.1-1.3.6-2.4c1-1.6 3-2 3-2s-.6 1-.6 2.4c0 2.2 1 3.6 1 5.8 0 2.8-2 4.4-4 4.6-2.4.2-4 1.2-4 3.2 0 2 1 3.2 1 5.4C21 27.6 19 30 16 30z" fill="#F1C93B"/>'+
+    '</svg></div>';
+}
+function brandHeader(sub){
+  return `<div class="hdr">
+    <div class="brand">${brandMark()}
+      <div><div class="title"><b>BUX</b> <span>ATHLETES</span></div>${sub?`<div class="sub">${sub}</div>`:''}</div>
+    </div>
+  </div>`;
+}
+
 /* ===== WORKOUT TAB ===== */
 function renderWorkout(){
   const nw=nextWorkout();
   const no=S.totalDone+1;
   let html=`<div class="wrap">
-    <div class="hdr">
-      <div><div class="title">מעקב אימונים</div><div class="sub">${S.history.length} אימונים בוצעו</div></div>
-      <div class="pill">אימון ${no}</div>
-    </div>`;
+    ${brandHeader(S.history.length+' אימונים בוצעו')}`;
 
   if(nw.type==='crossfit') html+=renderCF(nw);
+  else if(nw.type==='run') html+=renderRun(nw);
   else if(nw.type==='cond') html+=renderCond(nw);
   else html+=renderStrength(nw);
 
@@ -308,20 +379,23 @@ function renderWorkout(){
 function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf'}[t];const d={strength:'d-strength',cond:'d-cond',crossfit:'d-cf'}[t];return `<span class="badge ${c}"><span class="dot ${d}"></span>${TYPE_HE[t]}</span>`;}
 
 function renderStrength(nw){
-  const w=nw.def, data=draftFor(nw.sig);
+  const w=nw.def, data=draftFor(nw.sig), no=S.totalDone+1;
   let h=`<div class="card">
     ${typeBadge('strength')}
-    <div class="wtitle">שבוע ${w.w} · יום ${w.d}</div>
+    <div class="wtitle">אימון ${no}</div>
     <div class="wsub">${w.sum||''}</div>
   </div>`;
   w.ex.forEach((ex,ei)=>{
     const log=isLoggable(ex);
     const ps=plannedSets(ex);
+    const cl=computeLoads(ex.rx);
     h+=`<div class="ex ${log?'':'warm'}">
       <div class="en"><span class="num">${ex.n}.</span>${ex.name}</div>
-      <div class="rx">${(ex.rx||[]).join('\n')}</div>`;
+      <div class="rx">${cl.html.join('\n')}</div>`;
     if(log){
       const nrows=data['st_'+ei+'_nrows']||ps.sets;
+      // pre-fill computed target weight into untouched set-weight fields
+      if(cl.prefill!==''){ for(let k=0;k<nrows;k++){ const kk='st_'+ei+'_'+k+'_w'; if(!(kk in data))data[kk]=cl.prefill; } save(); }
       h+=`<div id="sets_${ei}">`;
       for(let k=0;k<nrows;k++) h+=setRow(ei,k,ps.reps,data);
       h+=`</div>
@@ -346,10 +420,10 @@ function setRow(ei,k,repsPh,data){
   </div>`;
 }
 function renderCond(nw){
-  const c=nw.def, data=draftFor(nw.sig);
+  const c=nw.def, data=draftFor(nw.sig), no=S.totalDone+1;
   let h=`<div class="card">
     ${typeBadge('cond')}
-    <div class="wtitle">סיבולת · סשן ${c.n}</div>
+    <div class="wtitle">אימון ${no}</div>
     <div class="wsub">${c.t||''}</div>
   </div>
   <div class="ex"><div class="en">התוכנית</div>`;
@@ -378,11 +452,11 @@ const CF_MSGS=[
 ];
 function cfMsg(i){return CF_MSGS[i%CF_MSGS.length];}
 function renderCF(nw){
-  const data=draftFor(nw.sig);
+  const data=draftFor(nw.sig), no=S.totalDone+1;
   const m=cfMsg(S.totalDone);
   const nrows=data.cf_nrows||1;
   let h=`<div class="card">
-    ${typeBadge('crossfit')}
+    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge('crossfit')}<span class="wnum">אימון ${no}</span></div>
     <div class="hero"><div class="emoji">${m.e}</div><div class="big">${m.t}</div><div class="small">${m.s}</div></div>
   </div>
   <div class="ex"><div class="en">מה עשיתם באימון?</div>
@@ -404,6 +478,31 @@ function cfRow(k,data){
     <div class="fld"><input class="in" inputmode="decimal" placeholder="ק״ג" data-f="cf_${k}_w" value="${data['cf_'+k+'_w']||''}"></div>
     <div class="fld"><input class="in" inputmode="numeric" placeholder="חזרות" data-f="cf_${k}_r" value="${data['cf_'+k+'_r']||''}"></div>
   </div>`;
+}
+const RUN_MSGS=[
+  {e:'🏃',t:'זמן לריצה!',s:'שים נעליים וצא לכביש 🛣️'},
+  {e:'🏃‍♂️',t:'יאללה לרוץ!',s:'רק אתה, הכביש והנשימה 💨'},
+  {e:'👟',t:'יום ריצה!',s:'כל קילומטר מקרב אותך למטרה 🎯'},
+  {e:'🌬️',t:'צא לרוץ!',s:'נקה את הראש, תשרוף אוויר 🔥'},
+];
+function runMsg(i){return RUN_MSGS[i%RUN_MSGS.length];}
+function renderRun(nw){
+  const data=draftFor(nw.sig), no=S.totalDone+1, m=runMsg(S.totalDone);
+  let h=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge('run')}<span class="wnum">אימון ${no}</span></div>
+    <div class="hero"><div class="emoji">${m.e}</div><div class="big">${m.t}</div><div class="small">${m.s}</div></div>
+  </div>
+  <div class="ex"><div class="en">התוצאות שלי</div>
+    <div class="grid2">
+      <div class="fld"><small>מרחק (ק״מ)</small><input class="in" inputmode="decimal" placeholder="ק״מ" data-f="run_km" value="${data.run_km||''}"></div>
+      <div class="fld"><small>זמן (דק׳)</small><input class="in" inputmode="decimal" placeholder="דקות" data-f="run_time" value="${data.run_time||''}"></div>
+      <div class="fld"><small>קצב ממוצע</small><input class="in" placeholder="למשל 5:10/ק״מ" data-f="run_pace" value="${esc(data.run_pace||'')}"></div>
+      <div class="fld"><small>דופק</small><input class="in" inputmode="numeric" placeholder="bpm" data-f="run_hr" value="${data.run_hr||''}"></div>
+    </div>
+    <div class="fld" style="margin-top:10px"><small>הערות</small><textarea class="in" placeholder="מסלול, איך הרגיש..." data-f="run_notes">${esc(data.run_notes||'')}</textarea></div>
+  </div>`;
+  h+=finishBtns(nw);
+  return h;
 }
 function finishBtns(nw){
   return `<button class="finish" id="finishBtn" onclick="askFinish()">✓ סיימתי את האימון</button>
@@ -457,11 +556,9 @@ function doFinish(){
     no:S.totalDone+1,
     ref: nw.type==='strength'?{w:nw.def.w,d:nw.def.d,idx:S.strengthIdx}
         : nw.type==='cond'?{n:nw.def.n,idx:S.condIdx}
-        : {msg:cfMsg(S.totalDone)},
-    title: nw.type==='strength'?('שבוע '+nw.def.w+' · יום '+nw.def.d)
-         : nw.type==='cond'?('סיבולת · סשן '+nw.def.n)
-         : 'קרוספיט',
-    data:Object.assign({},nw.def?{}:{}, S.draft.data)
+        : {},
+    title: TYPE_HE[nw.type]||'אימון',
+    data:Object.assign({}, S.draft.data)
   };
   S.history.push(entry);
   if(nw.type==='strength')S.strengthIdx=(S.strengthIdx+1)%PROGRAMS.strength.length;
@@ -500,7 +597,7 @@ function renderCalendar(){
   const byDate={};
   S.history.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
   let h=`<div class="wrap">
-    <div class="hdr"><div class="title">לוח שנה</div></div>
+    ${brandHeader('לוח שנה')}
     <div class="calhead">
       <button onclick="calNav(-1)">‹</button>
       <div class="m">${MONTHS[calM]} ${calY}</div>
@@ -522,6 +619,7 @@ function renderCalendar(){
     <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;font-weight:700">
       <span><span class="dot d-strength"></span> הרמת משקולות</span>
       <span><span class="dot d-cond"></span> סיבולת</span>
+      <span><span class="dot d-run"></span> ריצה</span>
       <span><span class="dot d-cf"></span> קרוספיט</span>
     </div>
   </div>
@@ -564,6 +662,14 @@ function detailBlock(e){
     if(e.data.en_hr)parts.push('דופק: '+e.data.en_hr);
     if(parts.length)h+=`<div class="detail-ex"><div class="dl">${parts.join('\n')}</div></div>`;
     if(e.data.en_notes)h+=`<div class="detail-ex"><div class="dn">הערות</div><div class="dl">${esc(e.data.en_notes)}</div></div>`;
+  }else if(e.type==='run'){
+    const parts=[];
+    if(e.data.run_km)parts.push('מרחק: '+e.data.run_km+' ק״מ');
+    if(e.data.run_time)parts.push('זמן: '+e.data.run_time+' דק׳');
+    if(e.data.run_pace)parts.push('קצב: '+esc(e.data.run_pace));
+    if(e.data.run_hr)parts.push('דופק: '+e.data.run_hr);
+    if(parts.length)h+=`<div class="detail-ex"><div class="dl">${parts.join('\n')}</div></div>`;
+    if(e.data.run_notes)h+=`<div class="detail-ex"><div class="dn">הערות</div><div class="dl">${esc(e.data.run_notes)}</div></div>`;
   }else{
     if(e.data.cf_text)h+=`<div class="detail-ex"><div class="dl">${esc(e.data.cf_text)}</div></div>`;
     const rows=[];
@@ -606,6 +712,13 @@ function editEntry(id){
       <div class="fld"><small>קצב</small><input class="in" data-e="en_pace" value="${esc(e.data.en_pace||'')}"></div>
       <div class="fld"><small>דופק</small><input class="in" inputmode="numeric" data-e="en_hr" value="${e.data.en_hr||''}"></div>
     </div><div class="fld" style="margin-top:10px"><small>הערות</small><textarea class="in" data-e="en_notes">${esc(e.data.en_notes||'')}</textarea></div></div>`;
+  }else if(e.type==='run'){
+    h+=`<div class="ex"><div class="grid2">
+      <div class="fld"><small>מרחק (ק״מ)</small><input class="in" inputmode="decimal" data-e="run_km" value="${e.data.run_km||''}"></div>
+      <div class="fld"><small>זמן (דק׳)</small><input class="in" inputmode="decimal" data-e="run_time" value="${e.data.run_time||''}"></div>
+      <div class="fld"><small>קצב</small><input class="in" data-e="run_pace" value="${esc(e.data.run_pace||'')}"></div>
+      <div class="fld"><small>דופק</small><input class="in" inputmode="numeric" data-e="run_hr" value="${e.data.run_hr||''}"></div>
+    </div><div class="fld" style="margin-top:10px"><small>הערות</small><textarea class="in" data-e="run_notes">${esc(e.data.run_notes||'')}</textarea></div></div>`;
   }else{
     h+=`<div class="ex"><div class="fld"><small>תיאור</small><textarea class="in" data-e="cf_text">${esc(e.data.cf_text||'')}</textarea></div>`;
     const nrows=e.data.cf_nrows||1;
@@ -647,27 +760,29 @@ function inScope(date,scope){
   return true;
 }
 function renderStats(){
-  const cnt={strength:0,cond:0,crossfit:0};
-  S.history.forEach(e=>cnt[e.type]++);
+  const cnt={strength:0,cond:0,crossfit:0,run:0};
+  S.history.forEach(e=>{if(cnt[e.type]!=null)cnt[e.type]++;});
   const scopes=['today','week','month','all'];
   const scLabel={today:'היום',week:'השבוע',month:'החודש',all:'הכל'};
   const ton=S.history.filter(e=>inScope(e.date,statScope)).reduce((a,e)=>a+tonnageOf(e),0);
   const condS=S.history.filter(e=>e.type==='cond'&&inScope(e.date,statScope));
   const dist=condS.reduce((a,e)=>a+(+e.data.en_dist||0),0);
-  const time=condS.reduce((a,e)=>a+(+e.data.en_time||0),0);
+  const runS=S.history.filter(e=>e.type==='run'&&inScope(e.date,statScope));
+  const runKm=runS.reduce((a,e)=>a+(+e.data.run_km||0),0);
   let h=`<div class="wrap">
-    <div class="hdr"><div class="title">סטטיסטיקות</div></div>
+    ${brandHeader('סטטיסטיקות')}
     <div class="seg">${scopes.map(s=>`<button class="${s===statScope?'on':''}" onclick="setScope('${s}')">${scLabel[s]}</button>`).join('')}</div>
     <div class="statgrid">
       <div class="stat"><div class="k">טונאז׳ ${scLabel[statScope]}</div><div class="v">${fmtNum(ton)}<span class="u"> ק״ג</span></div></div>
       <div class="stat"><div class="k">מרחק סיבולת</div><div class="v">${fmtNum(dist)}<span class="u"> מ׳</span></div></div>
-      <div class="stat"><div class="k">זמן סיבולת</div><div class="v">${fmtNum(time)}<span class="u"> דק׳</span></div></div>
+      <div class="stat"><div class="k">מרחק ריצה</div><div class="v">${fmtNum(runKm)}<span class="u"> ק״מ</span></div></div>
       <div class="stat"><div class="k">סה״כ אימונים</div><div class="v">${S.history.filter(e=>inScope(e.date,statScope)).length}</div></div>
     </div>
     <h2 style="font-size:16px;margin:20px 0 10px">אימונים לפי סוג</h2>
     <div class="counts">
       <div class="c"><div class="cv" style="color:var(--gold)">${cnt.strength}</div><div class="cl">הרמות</div></div>
       <div class="c"><div class="cv" style="color:var(--sky)">${cnt.cond}</div><div class="cl">סיבולת</div></div>
+      <div class="c"><div class="cv" style="color:var(--run)">${cnt.run}</div><div class="cl">ריצה</div></div>
       <div class="c"><div class="cv" style="color:var(--rose)">${cnt.crossfit}</div><div class="cl">קרוספיט</div></div>
     </div>
     <h2 style="font-size:16px;margin:20px 0 10px">טונאז׳ שבועי</h2>
@@ -743,9 +858,9 @@ function confetti(){
   const W=cv.width=innerWidth,H=cv.height=innerHeight;
   const cols=['#F1C93B','#2f9e44','#38bdf8','#fb7185','#fff'];
   const P=[];for(let i=0;i<130;i++)P.push({x:W/2,y:H/3,vx:(Math.random()-.5)*14,vy:Math.random()*-15-4,g:.4+Math.random()*.3,c:cols[i%cols.length],s:6+Math.random()*6,r:Math.random()*6});
-  let t=0;const myRun=++confettiRun; // newer burst cancels older
+  let t=0;const myRun=++confettiRun;
   (function anim(){
-    if(myRun!==confettiRun)return; // superseded
+    if(myRun!==confettiRun)return;
     ctx.clearRect(0,0,W,H);t++;
     P.forEach(p=>{p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.r+=.2;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);ctx.restore();});
     if(t<90)requestAnimationFrame(anim);else{ctx.clearRect(0,0,W,H);cv.classList.add('hidden');}
