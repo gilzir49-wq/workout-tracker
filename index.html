@@ -162,6 +162,7 @@ textarea.in{font-weight:600;line-height:1.5;resize:vertical;min-height:96px}
 
 /* modal */
 .overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+#confirmOv{z-index:160}
 .overlay.show{display:flex}
 .sheet{background:var(--bg2);width:100%;max-width:640px;max-height:88vh;overflow-y:auto;border-radius:22px 22px 0 0;border-top:1px solid var(--line);padding:18px 16px calc(20px + env(safe-area-inset-bottom))}
 .sheet h3{font-size:20px;margin-bottom:4px}
@@ -707,6 +708,7 @@ function saveEdit(id){
 }
 function deleteEntry(id){
   const idx=S.history.findIndex(x=>x.id===id); if(idx<0)return;
+  closeSheet(); // close the day-detail sheet first so the confirm shows on top
   document.getElementById('confirmTitle').textContent='למחוק את האימון?';
   document.getElementById('confirmMsg').textContent='האימון יימחק מההיסטוריה והספירה תתעדכן. אי אפשר לבטל.';
   const y=document.getElementById('confirmYes');y.textContent='כן, מחק';
