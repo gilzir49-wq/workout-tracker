@@ -80,7 +80,16 @@ input.in{text-align:left;direction:ltr}
 .ex .num{color:var(--dim);font-weight:800;margin-inline-end:5px}
 .ex .rx{color:var(--gold);font-size:14.5px;font-weight:600;white-space:pre-line;margin-bottom:9px;opacity:.95}
 .ex.warm .rx{color:var(--dim)}
-.setrow{display:grid;grid-template-columns:1fr 1fr 1.3fr auto;gap:7px;align-items:center;margin-bottom:7px}
+.setrow{display:grid;grid-template-columns:1fr 1fr .82fr auto;gap:7px;align-items:center;margin-bottom:7px}
+.donewrap{display:block;position:relative}
+.donebox{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;margin:0}
+.donefake{display:flex;align-items:center;justify-content:center;width:100%;height:46px;box-sizing:border-box;border:1.5px solid var(--line);border-radius:11px;background:var(--bg2);color:var(--dim2);font-size:20px;font-weight:800;cursor:pointer;transition:.12s;user-select:none;-webkit-user-select:none}
+.donebox:checked + .donefake{background:rgba(47,158,68,.22);border-color:var(--green2);color:var(--green2)}
+.in.locked{opacity:.9;border-style:dashed;cursor:default}
+.exdone{display:flex;align-items:center;gap:10px;margin-top:9px}
+.exdone .donewrap{flex:0 0 auto;width:60px}
+.exdone .donefake{width:60px;height:44px}
+.exdone small{color:var(--dim);font-size:13.5px;font-weight:700}
 .setrow .lbl{grid-column:1/-1;font-size:12px;color:var(--dim);font-weight:700;margin-bottom:-2px}
 .setrow .hc{font-size:11.5px;color:var(--dim);font-weight:700;padding:0 2px 1px}
 .setrow.maxrow [data-maxrep],.setrow.findrow [data-findrm]{border-color:var(--gold);background:rgba(241,201,59,.07)}
@@ -582,7 +591,10 @@ function renderStrength(nw){
       const nrows=data['st_'+ei+'_nrows']||spec.rows.length;
       // pre-fill each set's OWN target weight (per its % of your 1RM)
       let changed=false;
-      for(let k=0;k<nrows;k++){ const rs=spec.rows[k]; if(rs&&rs.wkg!==''&&rs.wkg!=null){ const kk='st_'+ei+'_'+k+'_w'; if(!(kk in data)){data[kk]=rs.wkg;changed=true;} } }
+      for(let k=0;k<nrows;k++){ const rs=spec.rows[k];
+        if(rs&&rs.wkg!==''&&rs.wkg!=null){ const kk='st_'+ei+'_'+k+'_w'; if(!(kk in data)){data[kk]=rs.wkg;changed=true;} }
+        if(rs&&rs.kind!=='max'&&/^\d+$/.test(''+(rs.ph||''))){ const rk='st_'+ei+'_'+k+'_r'; if(!(rk in data)){data[rk]=''+rs.ph;changed=true;} } // חזרות מוגדרות מראש → ממלא אוטומטית
+      }
       if(changed)save();
       // continuity notes: pulled-from-record / needs-record / last-time
       const usesRec=spec.rows.find(r=>r.rmRef);
@@ -604,6 +616,10 @@ function renderStrength(nw){
         <button class="minibtn" onclick="addSet(${ei})">+ סט</button>
         <button class="minibtn" onclick="delSet(${ei})">– סט</button>
       </div>`;
+    } else if(!isGenericHeader(ex.name)){
+      // תרגיל בלי משקל/אחוזים (למשל חלק ממטקון/EMOM) — צ׳ק אחד לסמן שבוצע
+      const exDone=data['ex_'+ei+'_done']?'checked':'';
+      h+=`<div class="exdone"><label class="donewrap" title="סמן שבוצע"><input type="checkbox" class="donebox" data-f="ex_${ei}_done" ${exDone}><span class="donefake">✓</span></label><small>סמן שבוצע</small></div>`;
     }
     h+=`</div>`;
   });
@@ -612,17 +628,20 @@ function renderStrength(nw){
 }
 function setRow(ei,k,rs,data){
   rs=rs||{kind:'normal',ph:''};
-  const w=data['st_'+ei+'_'+k+'_w']||'', r=data['st_'+ei+'_'+k+'_r']||'', n=data['st_'+ei+'_'+k+'_n']||'';
+  const w=data['st_'+ei+'_'+k+'_w']||'', r=data['st_'+ei+'_'+k+'_r']||'';
+  const done=data['st_'+ei+'_'+k+'_done']?'checked':'';
+  const repsLocked = rs.kind!=='max' && /^\d+$/.test(''+(rs.ph||'')); // חזרות מוגדרות מראש (מספר קבוע) → נעולות
   let repsPh=rs.ph||'חזרות', wPh='ק״ג', repsAttr='', wAttr='', hi='';
   if(rs.kind==='max'){ repsAttr=' data-maxrep="'+ei+'"'; hi=' maxrow'; }              // reps drives % -of-max reps
   else if(rs.kind==='pctmax'){ repsAttr=' data-pctmax="'+ei+'" data-pct="'+rs.pct+'"'; }
   else if(rs.kind==='findrm'){ wAttr=' data-findrm="'+ei+'"'; wPh=rs.rm+'RM'; repsPh=rs.rm; hi=' findrow'; } // weight drives % -of-XRM weights
   else if(rs.kind==='pctwt'){ wAttr=' data-pctwt="'+ei+'" data-pct="'+rs.pct+'"'; }
+  const rVal = repsLocked ? (r||(''+rs.ph)) : r;
   return `<div class="setrow${hi}">
-    ${k===0?'<div class="hc">משקל (ק״ג)</div><div class="hc">חזרות</div><div class="hc">הערה</div><div class="hc"></div>':''}
+    ${k===0?'<div class="hc">משקל (ק״ג)</div><div class="hc">חזרות</div><div class="hc">בוצע</div><div class="hc"></div>':''}
     <div class="fld"><input class="in" inputmode="decimal" placeholder="${wPh}" data-f="st_${ei}_${k}_w"${wAttr} value="${w}"></div>
-    <div class="fld"><input class="in" inputmode="numeric" placeholder="${repsPh}" data-f="st_${ei}_${k}_r"${repsAttr} value="${r}"></div>
-    <div class="fld"><input class="in" placeholder="הערה" data-f="st_${ei}_${k}_n" value="${esc(n)}"></div>
+    <div class="fld"><input class="in${repsLocked?' locked':''}" inputmode="numeric" placeholder="${repsPh}" data-f="st_${ei}_${k}_r"${repsAttr}${repsLocked?' readonly':''} value="${rVal}"></div>
+    <label class="donewrap" title="סמן שהסט בוצע — ייכנס לחישוב הטונאז׳"><input type="checkbox" class="donebox" data-f="st_${ei}_${k}_done" ${done}><span class="donefake">✓</span></label>
     <button class="copybtn" title="העתק מהסט הקודם" onclick="copyPrev(${ei},${k})">⇊</button>
   </div>`;
 }
@@ -686,6 +705,10 @@ function esc(s){return (s+'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').repla
 function wireInputs(nw){
   const data=draftFor(nw.sig);
   app.querySelectorAll('[data-f]').forEach(el=>{
+    if(el.type==='checkbox'){
+      el.addEventListener('change',()=>{ setField(data,el.dataset.f, el.checked?'1':''); refreshFinish(nw); });
+      return;
+    }
     el.addEventListener('input',()=>{
       setField(data,el.dataset.f,el.value);
       if(el.dataset.maxrep!=null) recomputeChain(el.dataset.maxrep,'data-pctmax',el.value,false,data); // max reps → reps
@@ -717,7 +740,7 @@ function hasAnything(nw){
 
 /* ---------- dynamic rows ---------- */
 function addSet(ei){const d=S.draft.data;const cur=d['st_'+ei+'_nrows']||parseSets(nextWorkout().def.ex[ei]).rows.length;d['st_'+ei+'_nrows']=cur+1;save();renderWorkout();}
-function delSet(ei){const d=S.draft.data;const cur=d['st_'+ei+'_nrows']||parseSets(nextWorkout().def.ex[ei]).rows.length;if(cur>1){d['st_'+ei+'_nrows']=cur-1;const k=cur-1;delete d['st_'+ei+'_'+k+'_w'];delete d['st_'+ei+'_'+k+'_r'];delete d['st_'+ei+'_'+k+'_n'];save();renderWorkout();}}
+function delSet(ei){const d=S.draft.data;const cur=d['st_'+ei+'_nrows']||parseSets(nextWorkout().def.ex[ei]).rows.length;if(cur>1){d['st_'+ei+'_nrows']=cur-1;const k=cur-1;delete d['st_'+ei+'_'+k+'_w'];delete d['st_'+ei+'_'+k+'_r'];delete d['st_'+ei+'_'+k+'_n'];delete d['st_'+ei+'_'+k+'_done'];save();renderWorkout();}}
 function copyPrev(ei,k){if(k<1)return;const d=S.draft.data;d['st_'+ei+'_'+k+'_w']=d['st_'+ei+'_'+(k-1)+'_w']||'';d['st_'+ei+'_'+k+'_r']=d['st_'+ei+'_'+(k-1)+'_r']||'';save();renderWorkout();}
 
 /* ---------- finish / undo ---------- */
@@ -925,10 +948,13 @@ function deleteEntry(id){
 /* ===== STATS TAB ===== */
 let statScope='week';
 function tonnageOf(e){
+  // אם באימון סומן ולו סט אחד כ"בוצע" — סופרים רק את הסטים המסומנים.
+  // אימון ישן בלי סימונים בכלל — סופרים הכל (תאימות לאחור, לא מאפס היסטוריה).
+  const gated=Object.keys(e.data).some(k=>/_done$/.test(k) && e.data[k]);
   let t=0;
   for(const k in e.data){
     let m=k.match(/^st_\d+_\d+_w$/);
-    if(m){const b=k.slice(0,-2);t+=(+e.data[k]||0)*(+e.data[b+'_r']||0);}
+    if(m){const b=k.slice(0,-2); if(!gated || e.data[b+'_done']) t+=(+e.data[k]||0)*(+e.data[b+'_r']||0);}
     m=k.match(/^cf_\d+_w$/);
     if(m){const b=k.slice(0,-2);t+=(+e.data[k]||0)*(+e.data[b+'_r']||0);}
   }
