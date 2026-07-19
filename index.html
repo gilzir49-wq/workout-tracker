@@ -109,11 +109,14 @@ textarea.in{font-weight:600;line-height:1.5;resize:vertical;min-height:96px}
 .minibtn:active{background:var(--card)}
 
 /* endurance / cf blocks */
-.planrow{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.planrow{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14.5px;align-items:center}
 .planrow:last-child{border-bottom:none}
 .planrow .ps{font-weight:800;color:var(--dim);min-width:26px}
 .planrow .pe{font-weight:800;flex:1}
 .planrow .pl{color:var(--gold);font-weight:600;text-align:end;white-space:pre-line}
+.planrow .pld{flex:0 0 auto;margin-inline-start:4px}
+.planrow:has(.donebox:checked) .pe{color:var(--run)}
+.planrow:has(.donebox:checked) .ps{color:var(--run)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
 
 /* big finish */
@@ -653,8 +656,10 @@ function renderCond(nw){
     <div class="wsub">${c.t||''}</div>
   </div>
   <div class="ex"><div class="en">התוכנית</div>`;
-  c.rows.forEach(r=>{
-    h+=`<div class="planrow"><span class="ps">${r.s}</span><span class="pe">${r.ex||''}${r.ex&&!isGenericHeader(r.ex)?' '+ytBtn(r.ex):''}</span><span class="pl">${(r.ld||[]).join('\n')}</span></div>`;
+  c.rows.forEach((r,i)=>{
+    const checkable = r.ex && !/^(workout|pace|emom|amrap|for time)\b/i.test(r.ex);
+    const done = data['cn_'+i+'_done']?'checked':'';
+    h+=`<div class="planrow"><span class="ps">${r.s}</span><span class="pe">${r.ex||''}${r.ex&&!isGenericHeader(r.ex)?' '+ytBtn(r.ex):''}</span><span class="pl">${(r.ld||[]).join('\n')}</span>${checkable?`<label class="donewrap pld" title="סמן שבוצע"><input type="checkbox" class="donebox" data-f="cn_${i}_done" ${done}><span class="donefake">✓</span></label>`:''}</div>`;
   });
   h+=`</div>
   <div class="ex"><div class="en">התוצאות שלי</div>
@@ -870,6 +875,9 @@ function detailBlock(e){
     if(e.data.en_pace)parts.push('קצב: '+esc(e.data.en_pace));
     if(e.data.en_hr)parts.push('דופק: '+e.data.en_hr);
     if(parts.length)h+=`<div class="detail-ex"><div class="dl">${parts.join('\n')}</div></div>`;
+    const cdef=PROGRAMS.cond[e.ref&&e.ref.idx!=null?e.ref.idx:0];
+    if(cdef){ const doneRows=cdef.rows.map((r,i)=>e.data['cn_'+i+'_done']?r.ex:null).filter(Boolean);
+      if(doneRows.length)h+=`<div class="detail-ex"><div class="dn">בוצע</div><div class="dl">${doneRows.map(x=>'✓ '+esc(x)).join('\n')}</div></div>`; }
     if(e.data.en_notes)h+=`<div class="detail-ex"><div class="dn">הערות</div><div class="dl">${esc(e.data.en_notes)}</div></div>`;
   }else{ // run / crossfit — done from external source, just marked
     if(e.data.ext_note)h+=`<div class="detail-ex"><div class="dn">הערה</div><div class="dl">${esc(e.data.ext_note)}</div></div>`;
