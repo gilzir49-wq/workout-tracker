@@ -290,7 +290,29 @@ function normalize(s){
   return s;
 }
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&typeof r==='object')return normalize(Object.assign({},DEFAULT,r));}catch(e){}return normalize(JSON.parse(JSON.stringify(DEFAULT)));}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast&&toast('שגיאת שמירה — בדוק מקום פנוי');}}
+function save0(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast&&toast('שגיאת שמירה — בדוק מקום פנוי');}}
+/* ---------- cloud sync (Firebase RTDB, single user) ---------- */
+const CLOUD_URL='https://command-center-gal-default-rtdb.europe-west1.firebasedatabase.app/workout-tracker/gal.json';
+let cloudTimer=null, cloudLoaded=false;
+function pushCloud(){ if(!cloudLoaded)return; try{ S._ts=Date.now(); fetch(CLOUD_URL,{method:'PUT',body:JSON.stringify(S)}).catch(function(){}); }catch(e){} }
+function save(){ save0(); clearTimeout(cloudTimer); cloudTimer=setTimeout(pushCloud,700); } // local + debounced cloud
+// merge cloud IN (adds any workouts/records not already local; never overwrites local program counters)
+function cloudSync(cb){
+  fetch(CLOUD_URL,{cache:'no-store'}).then(function(r){return r.json();}).then(function(remote){
+    let changed=false;
+    if(remote&&typeof remote==='object'){
+      if(Array.isArray(remote.history)){
+        const ids={}; (S.history||[]).forEach(function(e){if(e&&e.id)ids[e.id]=1;});
+        remote.history.forEach(function(e){ if(e&&e.id&&!ids[e.id]){ if(!e.data||typeof e.data!=='object')e.data={}; if(!e.type)e.type='strength'; S.history.push(e); changed=true; } });
+      }
+      if(remote.records&&typeof remote.records==='object'){ for(const k in remote.records){ if(!(k in S.records)){ S.records[k]=remote.records[k]; changed=true; } } }
+    }
+    cloudLoaded=true;              // only now are cloud writes allowed (prevents overwriting cloud before merge)
+    if(changed){ normalize(S); save0(); }
+    pushCloud();                   // upload the merged/local state so cloud is complete
+    if(changed&&cb)cb();
+  }).catch(function(){ cloudLoaded=true; });
+}
 
 /* ---------- date helpers ---------- */
 const MONTHS=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -560,7 +582,7 @@ function cycleStrip(){
 }
 function renderWorkout(){
   const nw=nextWorkout();
-  const no=S.totalDone+1;
+  const no=S.history.length+1;
   let html=`<div class="wrap">
     ${brandHeader(S.history.length+' אימונים בוצעו')}
     ${cycleStrip()}`;
@@ -576,6 +598,8 @@ function renderWorkout(){
 }
 
 function dotCls(t){return {strength:'d-strength',cond:'d-cond',crossfit:'d-cf',run:'d-run',other:'d-other'}[t]||'d-other';}
+// chronological session number across ALL logged workouts (app + manual)
+function histRank(e){ return [...S.history].sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.id||'').localeCompare(b.id||'')).findIndex(x=>x&&x.id===e.id)+1; }
 function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf',run:'b-run',other:'b-other'}[t]||'b-other';return `<span class="badge ${c}"><span class="dot ${dotCls(t)}"></span>${TYPE_HE[t]||'אימון'}</span>`;}
 // small YouTube button — opens a search for the exercise so any move is covered
 function ytBtn(name){
@@ -585,7 +609,7 @@ function ytBtn(name){
 }
 
 function renderStrength(nw){
-  const w=nw.def, data=draftFor(nw.sig), no=S.totalDone+1;
+  const w=nw.def, data=draftFor(nw.sig), no=S.history.length+1;
   let h=`<div class="card">
     ${typeBadge('strength')}
     <div class="wtitle">אימון ${no}</div>
@@ -657,7 +681,7 @@ function setRow(ei,k,rs,data){
   </div>`;
 }
 function renderCond(nw){
-  const c=nw.def, data=draftFor(nw.sig), no=S.totalDone+1;
+  const c=nw.def, data=draftFor(nw.sig), no=S.history.length+1;
   let h=`<div class="card">
     ${typeBadge('cond')}
     <div class="wtitle">אימון ${no}</div>
@@ -691,7 +715,7 @@ const CF_MSGS=[
 ];
 function cfMsg(i){return CF_MSGS[i%CF_MSGS.length];}
 function renderExternal(nw,kind){
-  const data=draftFor(nw.sig), no=S.totalDone+1;
+  const data=draftFor(nw.sig), no=S.history.length+1;
   const info = kind==='crossfit'
     ? {badge:'crossfit', emoji:'🔥', big:'היום אימון קרוספיט', small:'יאללה לעבודה 💪', scene:'scene-cf.jpg'}
     : {badge:'run',      emoji:'🏃', big:'היום אימון ריצה',    small:'צא לכביש, תשרוף אוויר 💨', scene:'scene-run.jpg'};
@@ -869,7 +893,7 @@ function closeSheet(){document.getElementById('sheetOv').classList.remove('show'
 function detailBlock(e){
   let h=`<div class="card" style="margin-bottom:14px">
     ${typeBadge(e.type)}
-    <div style="font-size:20px;font-weight:800;margin:10px 0 10px">אימון ${e.no} · ${e.title}${e.manual?' <span style="font-size:12px;color:var(--dim);font-weight:700">· ידני</span>':''}</div>`;
+    <div style="font-size:20px;font-weight:800;margin:10px 0 10px">אימון ${histRank(e)} · ${e.title}${e.manual?' <span style="font-size:12px;color:var(--dim);font-weight:700">· ידני</span>':''}</div>`;
   if(e.manual){
     if(e.data.custom_desc)h+=`<div class="detail-ex"><div class="dn">האימון</div><div class="dl">${esc(e.data.custom_desc)}</div></div>`;
     if(e.data.ext_note)h+=`<div class="detail-ex"><div class="dn">תוצאה</div><div class="dl">${esc(e.data.ext_note)}</div></div>`;
@@ -916,7 +940,7 @@ function findStrength(ref){
 function editEntry(id){
   const e=S.history.find(x=>x.id===id);if(!e)return;
   if(e.manual){ openManualForm(id); return; } // manual logs edit via their own form
-  let h=`<button class="close" onclick="closeSheet()">✕</button><h3>עריכת אימון ${e.no}</h3>
+  let h=`<button class="close" onclick="closeSheet()">✕</button><h3>עריכת אימון ${histRank(e)}</h3>
     <div style="color:var(--dim);font-size:14px;margin-bottom:14px">${e.title} · ${fmtDate(e.date)}</div>`;
   if(e.type==='strength'){
     const def=findStrength(e.ref);
@@ -962,8 +986,8 @@ function deleteEntry(id){
     const i=S.history.findIndex(x=>x.id===id); if(i<0)return;
     const ent=S.history[i];
     S.history.splice(i,1);
-    S.totalDone=Math.max(0,S.totalDone-1);
-    if(!ent.manual){ // manual logs never advanced the program indices, so don't revert them
+    if(!ent.manual){ // manual logs never advanced the program, so deleting one changes nothing there
+      S.totalDone=Math.max(0,S.totalDone-1);
       if(ent.type==='strength')S.strengthIdx=(S.strengthIdx-1+PROGRAMS.strength.length)%PROGRAMS.strength.length;
       else if(ent.type==='cond')S.condIdx=(S.condIdx-1+PROGRAMS.cond.length)%PROGRAMS.cond.length;
     }
@@ -1065,7 +1089,7 @@ function weeklyChart(){
 /* ===== RECORDS + HISTORY TAB ===== */
 function renderRecords(){
   const recs=Object.values(S.records||{});
-  const no=S.totalDone+1, nw=nextWorkout();
+  const no=S.history.length+1, nw=nextWorkout();
   let h=`<div class="wrap">${brandHeader('שיאים ומעקב')}
     <div class="card" style="display:flex;justify-content:space-between;align-items:center">
       <div><div style="font-weight:800;font-size:15px">${S.history.length} אימונים בוצעו</div>
@@ -1091,7 +1115,7 @@ function renderRecords(){
   if(!S.history.length){ h+=`<div class="card"><div class="hint" style="margin:8px 0">אין אימונים עדיין.</div></div>`; }
   else { [...S.history].reverse().forEach(e=>{
     h+=`<div class="recitem" onclick="openHist('${e.id}')">
-      <div class="ri-l"><div class="ri-name">אימון ${e.no} · ${e.title}</div><div class="ri-sub">${fmtDate(e.date)}</div></div>
+      <div class="ri-l"><div class="ri-name">אימון ${histRank(e)} · ${e.title}</div><div class="ri-sub">${fmtDate(e.date)}</div></div>
       ${typeBadge(e.type)}
     </div>`; }); }
   h+=`</div>`;
@@ -1108,7 +1132,7 @@ function editRecord(key){
 }
 function saveRecord(key){ const v=parseFloat(document.getElementById('recEdit').value); if(v>0&&S.records[key])S.records[key].value=v; save(); closeSheet(); renderRecords(); }
 function delRecord(key){ delete S.records[key]; save(); closeSheet(); renderRecords(); }
-function openHist(id){ const e=S.history.find(x=>x.id===id); if(!e)return; document.getElementById('sheetBody').innerHTML=`<button class="close" onclick="closeSheet()">✕</button><h3>${fmtDate(e.date)}</h3><div style="color:var(--dim);font-size:14px;margin-bottom:14px">אימון ${e.no}</div>`+detailBlock(e); document.getElementById('sheetOv').classList.add('show'); }
+function openHist(id){ const e=S.history.find(x=>x.id===id); if(!e)return; document.getElementById('sheetBody').innerHTML=`<button class="close" onclick="closeSheet()">✕</button><h3>${fmtDate(e.date)}</h3><div style="color:var(--dim);font-size:14px;margin-bottom:14px">אימון ${histRank(e)}</div>`+detailBlock(e); document.getElementById('sheetOv').classList.add('show'); }
 
 /* ---------- manually log a workout done outside the app (ad-hoc box WOD, etc.) ---------- */
 let manualType='crossfit';
@@ -1137,8 +1161,8 @@ function saveManual(id){
   const label = manualType==='other'?'אימון':(TYPE_HE[manualType]||'אימון');
   if(id){ const e=S.history.find(x=>x.id===id); if(e){ e.date=date; e.type=manualType; e.title=label; e.data.custom_desc=desc; e.data.ext_note=res; } }
   else {
-    S.history.push({id:'m'+Date.now(), date, type:manualType, manual:true, no:S.totalDone+1, title:label, ref:{}, data:{custom_desc:desc, ext_note:res}});
-    S.totalDone++; // counts toward the running number & continues the sequence; program content (strengthIdx/condIdx) untouched
+    // pure log — does NOT touch the prescribed program (totalDone/indices stay put). Numbered by date at render.
+    S.history.push({id:'m'+Date.now(), date, type:manualType, manual:true, title:label, ref:{}, data:{custom_desc:desc, ext_note:res}});
   }
   save(); closeSheet(); toast(id?'נשמר ✓':'האימון נוסף ✓'); renderRecords();
 }
@@ -1192,6 +1216,9 @@ function confetti(){
 
 /* ---------- init ---------- */
 render();
+cloudSync(function(){ render(); }); // pull any cloud workouts (e.g. ones added for Gal) on open
+document.addEventListener('visibilitychange',function(){ if(!document.hidden) cloudSync(function(){ render(); }); });
+if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} } // always-fresh (network-first)
 </script>
 </body>
 </html>
