@@ -165,8 +165,10 @@ textarea.in{font-weight:600;line-height:1.5;resize:vertical;min-height:96px}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
 .cell{aspect-ratio:1;border-radius:12px;background:var(--card);border:1px solid var(--line);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;font-weight:700;font-size:15px}
-.cell.empty{background:transparent;border:none}
+.cell{cursor:pointer}
+.cell.empty{background:transparent;border:none;cursor:default;pointer-events:none}
 .cell.today{border-color:var(--gold)}
+.cell:not(.empty):active{background:var(--card2);transform:scale(.95)}
 .cell.has{cursor:pointer}
 .cell .dots{display:flex;gap:2px;position:absolute;bottom:6px}
 .cell .n{opacity:.85}
@@ -550,7 +552,7 @@ function brandHeader(sub){
 function cycleStrip(){
   const step=S.totalDone%CYCLE.length;
   const next=CYCLE[(step+1)%CYCLE.length];
-  const segs=CYCLE.map((t,i)=>`<div class="cseg ${i<step?'past':(i===step?'cur':'future')}"><span class="cdot d-${t}"></span></div>`).join('');
+  const segs=CYCLE.map((t,i)=>`<div class="cseg ${i<step?'past':(i===step?'cur':'future')}"><span class="cdot ${dotCls(t)}"></span></div>`).join('');
   return `<div class="cyclewrap">
     <div class="cyclestrip">${segs}</div>
     <div class="cyclecap">אחרי זה: <b>${TYPE_HE[next]}</b></div>
@@ -573,7 +575,8 @@ function renderWorkout(){
   wireInputs(nw);
 }
 
-function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf',run:'b-run',other:'b-other'}[t]||'b-other';const d={strength:'d-strength',cond:'d-cond',crossfit:'d-cf',run:'d-run',other:'d-other'}[t]||'d-other';return `<span class="badge ${c}"><span class="dot ${d}"></span>${TYPE_HE[t]||'אימון'}</span>`;}
+function dotCls(t){return {strength:'d-strength',cond:'d-cond',crossfit:'d-cf',run:'d-run',other:'d-other'}[t]||'d-other';}
+function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf',run:'b-run',other:'b-other'}[t]||'b-other';return `<span class="badge ${c}"><span class="dot ${dotCls(t)}"></span>${TYPE_HE[t]||'אימון'}</span>`;}
 // small YouTube button — opens a search for the exercise so any move is covered
 function ytBtn(name){
   if(!name)return '';
@@ -829,8 +832,8 @@ function renderCalendar(){
     const k=calY+'-'+pad(calM+1)+'-'+pad(d);
     const evs=byDate[k]||[];
     const isToday=k===todayKey();
-    const dots=evs.map(e=>`<span class="dot d-${e.type}"></span>`).join('');
-    h+=`<div class="cell ${evs.length?'has':''} ${isToday?'today':''}" ${evs.length?`onclick="openDay('${k}')"`:''}>
+    const dots=evs.map(e=>`<span class="dot ${dotCls(e.type)}"></span>`).join('');
+    h+=`<div class="cell ${evs.length?'has':''} ${isToday?'today':''}" onclick="openDay('${k}')">
       <span class="n">${d}</span><span class="dots">${dots}</span></div>`;
   }
   h+=`</div>
@@ -850,9 +853,15 @@ function calNav(n){calM+=n;if(calM<0){calM=11;calY--;}if(calM>11){calM=0;calY++;
 /* ===== DAY DETAIL SHEET ===== */
 function openDay(k){
   const evs=S.history.filter(e=>e.date===k);
-  let h=`<button class="close" onclick="closeSheet()">✕</button>
-    <h3>${fmtDate(k)}</h3><div style="color:var(--dim);font-size:14px;margin-bottom:14px">${evs.length} אימונים</div>`;
-  evs.forEach(e=>{h+=detailBlock(e);});
+  let h=`<button class="close" onclick="closeSheet()">✕</button><h3>${fmtDate(k)}</h3>`;
+  if(evs.length){
+    h+=`<div style="color:var(--dim);font-size:14px;margin-bottom:14px">${evs.length} אימונים</div>`;
+    evs.forEach(e=>{h+=detailBlock(e);});
+    h+=`<button class="settingsbtn" onclick="openManualForm(null,'${k}')">➕ הוסף עוד אימון ליום הזה</button>`;
+  } else {
+    h+=`<div style="color:var(--dim);font-size:14px;margin:8px 0 16px">לא רשום אימון ביום הזה.</div>
+      <button class="finish" onclick="openManualForm(null,'${k}')">➕ הוסף אימון שעשיתי ביום הזה</button>`;
+  }
   document.getElementById('sheetBody').innerHTML=h;
   document.getElementById('sheetOv').classList.add('show');
 }
@@ -1104,10 +1113,10 @@ function openHist(id){ const e=S.history.find(x=>x.id===id); if(!e)return; docum
 /* ---------- manually log a workout done outside the app (ad-hoc box WOD, etc.) ---------- */
 let manualType='crossfit';
 function addManual(){ openManualForm(null); }
-function openManualForm(id){
+function openManualForm(id, presetDate){
   const e = id? S.history.find(x=>x.id===id):null;
   manualType = e? e.type:'crossfit';
-  const date = e? e.date:todayKey(), desc = e?(e.data.custom_desc||''):'', res = e?(e.data.ext_note||''):'';
+  const date = e? e.date : (presetDate||todayKey()), desc = e?(e.data.custom_desc||''):'', res = e?(e.data.ext_note||''):'';
   const types=[['crossfit','קרוספיט'],['cond','סיבולת'],['run','ריצה'],['strength','כוח'],['other','אחר']];
   document.getElementById('sheetBody').innerHTML=`<button class="close" onclick="closeSheet()">✕</button>
     <h3>${e?'עריכת אימון':'הוסף אימון שעשיתי'}</h3>
