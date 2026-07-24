@@ -60,6 +60,11 @@ h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
 .b-cond{background:rgba(56,189,248,.16);color:var(--sky)}
 .b-cf{background:rgba(251,113,133,.16);color:var(--rose)}
 .b-run{background:rgba(52,211,153,.16);color:var(--run)}
+.b-other{background:rgba(154,167,180,.16);color:var(--dim)}
+.d-other{background:var(--dim)}
+.mtypes{display:flex;gap:7px;flex-wrap:wrap}
+.mtbtn{flex:1;min-width:64px;padding:11px 8px;border-radius:11px;font-weight:800;font-size:14px;background:var(--bg2);border:1.5px solid var(--line);color:var(--dim)}
+.mtbtn.on{background:var(--gold);border-color:var(--gold);color:#1a1a1a}
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 .d-strength{background:var(--gold)} .d-cond{background:var(--sky)} .d-cf{background:var(--rose)} .d-run{background:var(--run)}
 
@@ -312,7 +317,7 @@ function nextWorkout(){
   if(type==='run') return {type:'run',def:null,sig:'rn'+S.totalDone,step};
   return {type:'crossfit',def:null,sig:'cf'+S.totalDone,step};
 }
-const TYPE_HE={strength:'הרמת משקולות',cond:'סיבולת',crossfit:'קרוספיט',run:'ריצה'};
+const TYPE_HE={strength:'הרמת משקולות',cond:'סיבולת',crossfit:'קרוספיט',run:'ריצה',other:'אחר'};
 
 /* ---------- 1RM maxes → auto-computed target loads ---------- */
 // EDIT HERE: Gal's personal maxes in kg (0 = unknown, app just shows the %)
@@ -568,7 +573,7 @@ function renderWorkout(){
   wireInputs(nw);
 }
 
-function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf',run:'b-run'}[t];const d={strength:'d-strength',cond:'d-cond',crossfit:'d-cf',run:'d-run'}[t];return `<span class="badge ${c}"><span class="dot ${d}"></span>${TYPE_HE[t]}</span>`;}
+function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf',run:'b-run',other:'b-other'}[t]||'b-other';const d={strength:'d-strength',cond:'d-cond',crossfit:'d-cf',run:'d-run',other:'d-other'}[t]||'d-other';return `<span class="badge ${c}"><span class="dot ${d}"></span>${TYPE_HE[t]||'אימון'}</span>`;}
 // small YouTube button — opens a search for the exercise so any move is covered
 function ytBtn(name){
   if(!name)return '';
@@ -855,8 +860,11 @@ function closeSheet(){document.getElementById('sheetOv').classList.remove('show'
 function detailBlock(e){
   let h=`<div class="card" style="margin-bottom:14px">
     ${typeBadge(e.type)}
-    <div style="font-size:20px;font-weight:800;margin:10px 0 10px">אימון ${e.no} · ${e.title}</div>`;
-  if(e.type==='strength'){
+    <div style="font-size:20px;font-weight:800;margin:10px 0 10px">אימון ${e.no} · ${e.title}${e.manual?' <span style="font-size:12px;color:var(--dim);font-weight:700">· ידני</span>':''}</div>`;
+  if(e.manual){
+    if(e.data.custom_desc)h+=`<div class="detail-ex"><div class="dn">האימון</div><div class="dl">${esc(e.data.custom_desc)}</div></div>`;
+    if(e.data.ext_note)h+=`<div class="detail-ex"><div class="dn">תוצאה</div><div class="dl">${esc(e.data.ext_note)}</div></div>`;
+  }else if(e.type==='strength'){
     const w=PROGRAMS.strength[e.ref.idx!==undefined?e.ref.idx:0];
     // reconstruct from def + data
     const def=findStrength(e.ref);
@@ -898,6 +906,7 @@ function findStrength(ref){
 /* ---------- edit past entry ---------- */
 function editEntry(id){
   const e=S.history.find(x=>x.id===id);if(!e)return;
+  if(e.manual){ openManualForm(id); return; } // manual logs edit via their own form
   let h=`<button class="close" onclick="closeSheet()">✕</button><h3>עריכת אימון ${e.no}</h3>
     <div style="color:var(--dim);font-size:14px;margin-bottom:14px">${e.title} · ${fmtDate(e.date)}</div>`;
   if(e.type==='strength'){
@@ -945,8 +954,10 @@ function deleteEntry(id){
     const ent=S.history[i];
     S.history.splice(i,1);
     S.totalDone=Math.max(0,S.totalDone-1);
-    if(ent.type==='strength')S.strengthIdx=(S.strengthIdx-1+PROGRAMS.strength.length)%PROGRAMS.strength.length;
-    else if(ent.type==='cond')S.condIdx=(S.condIdx-1+PROGRAMS.cond.length)%PROGRAMS.cond.length;
+    if(!ent.manual){ // manual logs never advanced the program indices, so don't revert them
+      if(ent.type==='strength')S.strengthIdx=(S.strengthIdx-1+PROGRAMS.strength.length)%PROGRAMS.strength.length;
+      else if(ent.type==='cond')S.condIdx=(S.condIdx-1+PROGRAMS.cond.length)%PROGRAMS.cond.length;
+    }
     save(); closeSheet(); toast('האימון נמחק');
     if(TAB==='calendar')renderCalendar(); else if(TAB==='stats')renderStats(); else if(TAB==='records')renderRecords();
   };
@@ -1065,7 +1076,9 @@ function renderRecords(){
       </div>`;
     });
   }
-  h+=`<h2 style="font-size:16px;margin:20px 0 10px">📖 היסטוריית אימונים</h2>`;
+  h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin:20px 0 10px">
+    <h2 style="font-size:16px;margin:0">📖 היסטוריית אימונים</h2>
+    <button class="minibtn" onclick="addManual()">➕ הוסף אימון שעשיתי</button></div>`;
   if(!S.history.length){ h+=`<div class="card"><div class="hint" style="margin:8px 0">אין אימונים עדיין.</div></div>`; }
   else { [...S.history].reverse().forEach(e=>{
     h+=`<div class="recitem" onclick="openHist('${e.id}')">
@@ -1087,6 +1100,39 @@ function editRecord(key){
 function saveRecord(key){ const v=parseFloat(document.getElementById('recEdit').value); if(v>0&&S.records[key])S.records[key].value=v; save(); closeSheet(); renderRecords(); }
 function delRecord(key){ delete S.records[key]; save(); closeSheet(); renderRecords(); }
 function openHist(id){ const e=S.history.find(x=>x.id===id); if(!e)return; document.getElementById('sheetBody').innerHTML=`<button class="close" onclick="closeSheet()">✕</button><h3>${fmtDate(e.date)}</h3><div style="color:var(--dim);font-size:14px;margin-bottom:14px">אימון ${e.no}</div>`+detailBlock(e); document.getElementById('sheetOv').classList.add('show'); }
+
+/* ---------- manually log a workout done outside the app (ad-hoc box WOD, etc.) ---------- */
+let manualType='crossfit';
+function addManual(){ openManualForm(null); }
+function openManualForm(id){
+  const e = id? S.history.find(x=>x.id===id):null;
+  manualType = e? e.type:'crossfit';
+  const date = e? e.date:todayKey(), desc = e?(e.data.custom_desc||''):'', res = e?(e.data.ext_note||''):'';
+  const types=[['crossfit','קרוספיט'],['cond','סיבולת'],['run','ריצה'],['strength','כוח'],['other','אחר']];
+  document.getElementById('sheetBody').innerHTML=`<button class="close" onclick="closeSheet()">✕</button>
+    <h3>${e?'עריכת אימון':'הוסף אימון שעשיתי'}</h3>
+    <div style="color:var(--dim);font-size:13px;margin:6px 0 14px">אימון שעשית מחוץ לתוכנית — ייכנס להיסטוריה. התוכנית שלך ממשיכה כרגיל.</div>
+    <div class="fld" style="margin-bottom:12px"><small>תאריך</small><input class="in" type="date" id="mDate" value="${date}"></div>
+    <div class="fld"><small>סוג</small></div>
+    <div class="mtypes" id="mTypes">${types.map(t=>`<button class="mtbtn${manualType===t[0]?' on':''}" data-t="${t[0]}" onclick="pickManualType('${t[0]}')">${t[1]}</button>`).join('')}</div>
+    <div class="fld" style="margin-top:12px"><small>תיאור האימון</small><textarea class="in" id="mDesc" placeholder="למשל: For Time — 500m ski, 12 GHD, 10-20-30-40-50m HSW">${esc(desc)}</textarea></div>
+    <div class="fld" style="margin-top:10px"><small>תוצאה / הערה</small><textarea class="in" id="mRes" placeholder="למשל: לא סיימתי, הגעתי לסט של 25מ HSW">${esc(res)}</textarea></div>
+    <button class="finish" onclick="saveManual(${e?"'"+id+"'":'null'})">${e?'שמור שינויים':'✓ הוסף לאימונים'}</button>`;
+  document.getElementById('sheetOv').classList.add('show');
+}
+function pickManualType(t){ manualType=t; document.querySelectorAll('#mTypes .mtbtn').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); }
+function saveManual(id){
+  const date=(document.getElementById('mDate').value||todayKey());
+  const desc=document.getElementById('mDesc').value.trim(), res=document.getElementById('mRes').value.trim();
+  if(!desc && !res){ toast('כתוב תיאור או תוצאה'); return; }
+  const label = manualType==='other'?'אימון':(TYPE_HE[manualType]||'אימון');
+  if(id){ const e=S.history.find(x=>x.id===id); if(e){ e.date=date; e.type=manualType; e.title=label; e.data.custom_desc=desc; e.data.ext_note=res; } }
+  else {
+    S.history.push({id:'m'+Date.now(), date, type:manualType, manual:true, no:S.totalDone+1, title:label, ref:{}, data:{custom_desc:desc, ext_note:res}});
+    S.totalDone++; // counts toward the running number & continues the sequence; program content (strengthIdx/condIdx) untouched
+  }
+  save(); closeSheet(); toast(id?'נשמר ✓':'האימון נוסף ✓'); renderRecords();
+}
 
 /* ---------- export/import/reset ---------- */
 function exportData(){
