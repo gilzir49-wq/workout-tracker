@@ -300,16 +300,28 @@ function save(){ save0(); clearTimeout(cloudTimer); cloudTimer=setTimeout(pushCl
 function cloudSync(cb){
   fetch(CLOUD_URL,{cache:'no-store'}).then(function(r){return r.json();}).then(function(remote){
     let changed=false;
-    if(remote&&typeof remote==='object'){
-      if(Array.isArray(remote.history)){
-        const ids={}; (S.history||[]).forEach(function(e){if(e&&e.id)ids[e.id]=1;});
-        remote.history.forEach(function(e){ if(e&&e.id&&!ids[e.id]){ if(!e.data||typeof e.data!=='object')e.data={}; if(!e.type)e.type='strength'; S.history.push(e); changed=true; } });
+    if(remote&&typeof remote==='object'&&Array.isArray(remote.history)){
+      const clean=function(e){ if(!e.data||typeof e.data!=='object')e.data={}; if(!e.type)e.type='strength'; return e; };
+      if(!S.history||S.history.length===0){
+        // fresh / wiped device — restore the WHOLE cloud state (history + program position)
+        S.history=remote.history.map(clean);
+        if(remote.records&&typeof remote.records==='object')S.records=remote.records;
+        if(typeof remote.totalDone==='number')S.totalDone=remote.totalDone;
+        if(typeof remote.strengthIdx==='number')S.strengthIdx=remote.strengthIdx;
+        if(typeof remote.condIdx==='number')S.condIdx=remote.condIdx;
+        changed=S.history.length>0;
+      } else {
+        // device already has data — union by id AND by date+type+title (prevents duplicating the same workout)
+        const sig=function(e){return (e.date||'')+'|'+(e.type||'')+'|'+(e.title||'');};
+        const ids={}, sigs={};
+        S.history.forEach(function(e){ if(e&&e.id)ids[e.id]=1; sigs[sig(e)]=1; });
+        remote.history.forEach(function(e){ if(e&&e.id&&!ids[e.id]&&!sigs[sig(e)]){ S.history.push(clean(e)); changed=true; } });
+        if(remote.records)for(const k in remote.records){ if(!(k in S.records)){ S.records[k]=remote.records[k]; changed=true; } }
       }
-      if(remote.records&&typeof remote.records==='object'){ for(const k in remote.records){ if(!(k in S.records)){ S.records[k]=remote.records[k]; changed=true; } } }
     }
-    cloudLoaded=true;              // only now are cloud writes allowed (prevents overwriting cloud before merge)
+    cloudLoaded=true;
     if(changed){ normalize(S); save0(); }
-    pushCloud();                   // upload the merged/local state so cloud is complete
+    pushCloud();
     if(changed&&cb)cb();
   }).catch(function(){ cloudLoaded=true; });
 }
