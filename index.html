@@ -629,7 +629,9 @@ function renderWorkout(){
 
 function dotCls(t){return {strength:'d-strength',cond:'d-cond',crossfit:'d-cf',run:'d-run',other:'d-other'}[t]||'d-other';}
 // chronological session number across ALL logged workouts (app + manual)
-function histRank(e){ return [...S.history].sort((a,b)=>(a.date||'').localeCompare(b.date||'')||(a.id||'').localeCompare(b.id||'')).findIndex(x=>x&&x.id===e.id)+1; }
+// chronological session number: by date, then by creation time (ts), then id — stable & correct even for same-day
+function histSorted(){ return [...S.history].sort(function(a,b){ return (a.date||'').localeCompare(b.date||'') || ((+a.ts||0)-(+b.ts||0)) || (a.id||'').localeCompare(b.id||''); }); }
+function histRank(e){ return histSorted().findIndex(function(x){return x&&x.id===e.id;})+1; }
 function typeBadge(t){const c={strength:'b-strength',cond:'b-cond',crossfit:'b-cf',run:'b-run',other:'b-other'}[t]||'b-other';return `<span class="badge ${c}"><span class="dot ${dotCls(t)}"></span>${TYPE_HE[t]||'אימון'}</span>`;}
 // small YouTube button — opens a search for the exercise so any move is covered
 function ytBtn(name){
@@ -826,6 +828,7 @@ function doFinish(){
   const nw=pendingFinish;closeConfirm();if(!nw)return;
   const entry={
     id:'w'+Date.now(),
+    ts:Date.now(),
     date:todayKey(),
     type:nw.type,
     no:S.totalDone+1,
@@ -1192,7 +1195,7 @@ function saveManual(id){
   if(id){ const e=S.history.find(x=>x.id===id); if(e){ e.date=date; e.type=manualType; e.title=label; e.data.custom_desc=desc; e.data.ext_note=res; } }
   else {
     // pure log — does NOT touch the prescribed program (totalDone/indices stay put). Numbered by date at render.
-    S.history.push({id:'m'+Date.now(), date, type:manualType, manual:true, title:label, ref:{}, data:{custom_desc:desc, ext_note:res}});
+    S.history.push({id:'m'+Date.now(), ts:Date.now(), date, type:manualType, manual:true, title:label, ref:{}, data:{custom_desc:desc, ext_note:res}});
   }
   save(); closeSheet(); toast(id?'נשמר ✓':'האימון נוסף ✓'); renderRecords();
 }
