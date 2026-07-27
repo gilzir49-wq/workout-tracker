@@ -931,27 +931,33 @@ function detailBlock(e){
     if(e.data.custom_desc)h+=`<div class="detail-ex"><div class="dn">האימון</div><div class="dl">${esc(e.data.custom_desc)}</div></div>`;
     if(e.data.ext_note)h+=`<div class="detail-ex"><div class="dn">תוצאה</div><div class="dl">${esc(e.data.ext_note)}</div></div>`;
   }else if(e.type==='strength'){
-    const w=PROGRAMS.strength[e.ref.idx!==undefined?e.ref.idx:0];
-    // reconstruct from def + data
+    // always show the workout content (exercises + prescription), plus logged weights where present
     const def=findStrength(e.ref);
-    def.ex.forEach((ex,ei)=>{
+    (def.ex||[]).forEach((ex,ei)=>{
       const rows=[];
       for(let k=0;k<20;k++){
-        const wv=e.data['st_'+ei+'_'+k+'_w'],rv=e.data['st_'+ei+'_'+k+'_r'],nv=e.data['st_'+ei+'_'+k+'_n'];
-        if(wv||rv||nv)rows.push(`${wv||'–'}ק״ג × ${rv||'–'}${nv?' · '+esc(nv):''}`);
+        const wv=e.data['st_'+ei+'_'+k+'_w'],rv=e.data['st_'+ei+'_'+k+'_r'],dn=e.data['st_'+ei+'_'+k+'_done'];
+        if(wv||rv)rows.push((dn?'✓ ':'')+(wv||'–')+'ק״ג × '+(rv||'–'));
       }
-      if(rows.length)h+=`<div class="detail-ex"><div class="dn">${ex.name}</div><div class="dl">${rows.join('\n')}</div></div>`;
+      const rx=(ex.rx||[]).join('\n');
+      h+=`<div class="detail-ex"><div class="dn">${esc(ex.n)}. ${esc(ex.name)}</div>`
+        +(rx?`<div class="dl" style="color:var(--gold)">${esc(rx)}</div>`:'')
+        +(rows.length?`<div class="dl" style="margin-top:5px;color:var(--txt);font-weight:800">${rows.join('\n')}</div>`:'')
+        +`</div>`;
     });
   }else if(e.type==='cond'){
+    const cdef=PROGRAMS.cond[e.ref&&e.ref.idx!=null?e.ref.idx:0];
+    if(cdef){ (cdef.rows||[]).forEach((r,i)=>{ if(!r.ex)return;
+      const done=e.data['cn_'+i+'_done'];
+      h+=`<div class="detail-ex"><div class="dn">${done?'✓ ':''}${esc(r.ex)}</div>`
+        +((r.ld&&r.ld.length)?`<div class="dl" style="color:var(--gold)">${esc(r.ld.join(' · '))}</div>`:'')+`</div>`;
+    }); }
     const parts=[];
     if(e.data.en_dist)parts.push('מרחק: '+e.data.en_dist+' מ׳');
     if(e.data.en_time)parts.push('זמן: '+e.data.en_time+' דק׳');
     if(e.data.en_pace)parts.push('קצב: '+esc(e.data.en_pace));
     if(e.data.en_hr)parts.push('דופק: '+e.data.en_hr);
-    if(parts.length)h+=`<div class="detail-ex"><div class="dl">${parts.join('\n')}</div></div>`;
-    const cdef=PROGRAMS.cond[e.ref&&e.ref.idx!=null?e.ref.idx:0];
-    if(cdef){ const doneRows=cdef.rows.map((r,i)=>e.data['cn_'+i+'_done']?r.ex:null).filter(Boolean);
-      if(doneRows.length)h+=`<div class="detail-ex"><div class="dn">בוצע</div><div class="dl">${doneRows.map(x=>'✓ '+esc(x)).join('\n')}</div></div>`; }
+    if(parts.length)h+=`<div class="detail-ex"><div class="dn">התוצאות שלי</div><div class="dl">${parts.join('\n')}</div></div>`;
     if(e.data.en_notes)h+=`<div class="detail-ex"><div class="dn">הערות</div><div class="dl">${esc(e.data.en_notes)}</div></div>`;
   }else{ // run / crossfit — done from external source, just marked
     if(e.data.ext_note)h+=`<div class="detail-ex"><div class="dn">הערה</div><div class="dl">${esc(e.data.ext_note)}</div></div>`;
