@@ -287,7 +287,7 @@ canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:200}
 <script>
 /* ---------- state ---------- */
 const KEY='wl101_tracker_v1';
-const DEFAULT={strengthIdx:0,condIdx:0,totalDone:0,history:[],draft:{sig:'',data:{}},records:{}};
+const DEFAULT={strengthIdx:0,condIdx:0,totalDone:0,history:[],draft:{sig:'',data:{}},records:{},nextWod:{}};
 let S=load();
 function normalize(s){
   try{
@@ -302,6 +302,7 @@ function normalize(s){
     if(!s.draft.data||typeof s.draft.data!=='object')s.draft.data={};
     if(typeof s.draft.sig!=='string')s.draft.sig='';
     if(!s.records||typeof s.records!=='object')s.records={};
+    if(!s.nextWod||typeof s.nextWod!=='object')s.nextWod={};
   }catch(e){}
   return s;
 }
@@ -335,6 +336,9 @@ function cloudSync(cb){
         if(remote.records)for(const k in remote.records){ if(!(k in S.records)){ S.records[k]=remote.records[k]; changed=true; } }
       }
     }
+    // pull loaded WODs (e.g. ones I queued for Gal) into empty slots
+    if(remote&&remote.nextWod&&typeof remote.nextWod==='object'){ if(!S.nextWod)S.nextWod={};
+      for(const kind in remote.nextWod){ if(!S.nextWod[kind]&&remote.nextWod[kind]){ S.nextWod[kind]=remote.nextWod[kind]; changed=true; } } }
     cloudLoaded=true;
     if(changed){ normalize(S); save0(); }
     pushCloud();
@@ -748,14 +752,19 @@ const CF_MSGS=[
 function cfMsg(i){return CF_MSGS[i%CF_MSGS.length];}
 function renderExternal(nw,kind){
   const data=draftFor(nw.sig), no=S.history.length+1;
+  const wod = S.nextWod && S.nextWod[kind]; // a specific WOD loaded for this slot
   const info = kind==='crossfit'
     ? {badge:'crossfit', emoji:'🔥', big:'היום אימון קרוספיט', small:'יאללה לעבודה 💪', scene:'scene-cf.jpg'}
     : {badge:'run',      emoji:'🏃', big:'היום אימון ריצה',    small:'צא לכביש, תשרוף אוויר 💨', scene:'scene-run.jpg'};
   let h=`<div class="card scenecard" style="background-image:linear-gradient(180deg,rgba(13,17,23,.32),rgba(13,17,23,.86)),url('${info.scene}')">
     <div style="display:flex;justify-content:space-between;align-items:center">${typeBadge(info.badge)}<span class="wnum" style="color:#fff">אימון ${no}</span></div>
-    <div class="hero"><div class="emoji">${info.emoji}</div><div class="big" style="color:#fff">${info.big}</div><div class="small" style="color:#dfe7ee">${info.small}</div></div>
-  </div>
-  <div class="ex"><div class="en">הערה (רשות)</div>
+    <div class="hero"><div class="emoji">${info.emoji}</div><div class="big" style="color:#fff">${wod&&wod.title?esc(wod.title):info.big}</div><div class="small" style="color:#dfe7ee">${info.small}</div></div>
+  </div>`;
+  if(wod){
+    h+=`<div class="ex"><div class="en">האימון שלך היום 🎯</div>
+      <div class="rx" style="white-space:pre-line;color:var(--gold);font-size:15px;font-weight:600">${esc(wod.desc||'')}</div></div>`;
+  }
+  h+=`<div class="ex"><div class="en">${wod?'תוצאה / הערה (רשות)':'הערה (רשות)'}</div>
     <div class="fld"><textarea class="in" placeholder="אפשר לרשום כאן מה עשית / התוצאה..." data-f="ext_note">${esc(data.ext_note||'')}</textarea></div>
   </div>`;
   h+=finishBtns(nw);
@@ -839,6 +848,12 @@ function doFinish(){
     data:Object.assign({}, S.draft.data)
   };
   if(nw.type==='strength') captureRecords(nw.def, S.draft.data, nw.def.w, entry.date);
+  // if a specific WOD was loaded for this crossfit/run slot, store it in history and consume it
+  if((nw.type==='crossfit'||nw.type==='run') && S.nextWod && S.nextWod[nw.type]){
+    const wod=S.nextWod[nw.type];
+    entry.data.custom_desc=wod.desc||''; if(wod.title)entry.title=wod.title;
+    delete S.nextWod[nw.type];
+  }
   S.history.push(entry);
   if(nw.type==='strength')S.strengthIdx=(S.strengthIdx+1)%PROGRAMS.strength.length;
   else if(nw.type==='cond')S.condIdx=(S.condIdx+1)%PROGRAMS.cond.length;
